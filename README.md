@@ -1,2 +1,3 @@
 # Peer-Feedback-Exchange
-A collaborative term project transforming how students give and receive feedback on coursework
+
+A **Peer Feedback Platform** for Boston University students. Students can exchange feedback on coursework and collaborate to improve their learning through structured peer review.
