@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import type { UserRole } from "./components/auth/types";
 import { LoginPage } from "./components/auth/LoginPage";
+import { StudentDashboard } from "./components/student/Dashboard";
 
 function RequireAuth({
   isLoggedIn,
@@ -74,6 +75,41 @@ function ProfessorView({ onLogout }: { onLogout: () => void }) {
   );
 }
 
+
+function StudentDashboardRoute({ onLogout }: { onLogout: () => void }) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* simple top bar */}
+      <div className="bg-white border-b border-gray-200 p-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Peer Review Platform</h1>
+          <button
+            onClick={() => {
+              onLogout();
+              navigate("/login");
+            }}
+            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <StudentDashboard
+        onNavigateToSubmission={() => navigate("/submission")}
+        onNavigateToReview={() => navigate("/review")}
+        onNavigateToFeedback={(title) =>
+          navigate(`/feedback/${encodeURIComponent(title)}`)
+        }
+      />
+    </div>
+  );
+}
+
+
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<UserRole>("student");
@@ -109,10 +145,38 @@ export default function App() {
         path="/dashboard"
         element={
           <RequireAuth isLoggedIn={isLoggedIn}>
-            <Dashboard onLogout={handleLogout} />
+            <StudentDashboardRoute onLogout={handleLogout} />
           </RequireAuth>
         }
       />
+
+      <Route
+        path="/submission"
+        element={
+          <RequireAuth isLoggedIn={isLoggedIn}>
+            <div className="min-h-screen bg-gray-50 p-8">Submission page coming next.</div>
+          </RequireAuth>
+        }
+      />
+
+      <Route
+        path="/review"
+        element={
+          <RequireAuth isLoggedIn={isLoggedIn}>
+            <div className="min-h-screen bg-gray-50 p-8">Review flow coming next.</div>
+          </RequireAuth>
+        }
+      />
+
+      <Route
+        path="/feedback/:title"
+        element={
+          <RequireAuth isLoggedIn={isLoggedIn}>
+            <div className="min-h-screen bg-gray-50 p-8">Feedback page coming next.</div>
+          </RequireAuth>
+        }
+      />
+
 
       <Route
         path="/professor"
