@@ -61,6 +61,11 @@ export default function App() {
     navigate(`/viewfeedback?${params.toString()}`);
   };
 
+  const handleNavigateToEditReview = (review: { title: string; type: string }) => {
+    const params = new URLSearchParams({ edit: review.title, type: review.type });
+    navigate(`/feedback?${params.toString()}`);
+  };
+
   // Show login page when not authenticated
   if (!isLoggedIn) {
     return (
@@ -78,35 +83,6 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Peer Review Platform</h1>
           <div className="flex gap-2 items-center">
-            {/* Student View Button */}
-            <button
-              onClick={() => {
-                setCurrentRole('student');
-                navigate('/student');
-              }}
-              className={`px-4 py-2 rounded-lg ${
-                currentRole === 'student'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Student View
-            </button>
-            {/* Professor View Button */}
-            <button
-              onClick={() => {
-                setCurrentRole('professor');
-                navigate('/professor');
-              }}
-              className={`px-4 py-2 rounded-lg ${
-                currentRole === 'professor'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Professor View
-            </button>
-            {/* Logout Button */}
             <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
@@ -126,6 +102,7 @@ export default function App() {
             <Dashboard
               onNavigateToSubmission={() => navigate('/submission')}
               onNavigateToReview={() => navigate('/feedback')}
+              onNavigateToEditReview={handleNavigateToEditReview}
               onNavigateToFeedback={handleNavigateToFeedback}
             />
           }
@@ -144,7 +121,7 @@ export default function App() {
           path="/feedback"
           element={
             currentRole === 'student' ? (
-              <ReviewFlow onBack={() => navigate('/student')} />
+              <ReviewFlowWrapper onBack={() => navigate('/student')} />
             ) : (
               <Navigate to="/professor" replace />
             )
@@ -186,4 +163,21 @@ function ViewFeedbackWrapper({ onBack }: { onBack: () => void }) {
   const submissionTitle = searchParams.get('title') || '';
 
   return <SubmissionFeedback onBack={onBack} submissionTitle={submissionTitle} />;
+}
+
+/**
+ * Wrapper to read edit review params from URL for feedback route
+ */
+function ReviewFlowWrapper({ onBack }: { onBack: () => void }) {
+  const [searchParams] = useSearchParams();
+  const editReviewTitle = searchParams.get('edit') || undefined;
+  const editReviewType = searchParams.get('type') || undefined;
+
+  return (
+    <ReviewFlow
+      onBack={onBack}
+      editReviewTitle={editReviewTitle}
+      editReviewType={editReviewType}
+    />
+  );
 }

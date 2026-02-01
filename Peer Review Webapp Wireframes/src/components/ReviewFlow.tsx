@@ -7,6 +7,10 @@ import { ArrowLeft, FileText, Star, MessageSquare, ThumbsUp, ThumbsDown, AlertCi
 interface ReviewFlowProps {
   /** Callback to navigate back to dashboard */
   onBack: () => void;
+  /** When set, shows the review form directly for editing this completed review */
+  editReviewTitle?: string;
+  /** Type of the review being edited (Academic Paper, Code Project, etc.) */
+  editReviewType?: string;
 }
 
 /**
@@ -20,7 +24,7 @@ interface ReviewFlowProps {
  * 
  * Reviews are anonymous - reviewer identity is not shown to submitter
  */
-export function ReviewFlow({ onBack }: ReviewFlowProps) {
+export function ReviewFlow({ onBack, editReviewTitle, editReviewType }: ReviewFlowProps) {
   // Currently selected review ID (null if viewing list)
   const [selectedReview, setSelectedReview] = useState<number | null>(null);
   
@@ -112,7 +116,10 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
     alert('Draft saved successfully!');
   };
 
-  if (selectedReview === null) {
+  // When editing a completed review from My Completed Reviews, show form directly
+  const isEditingCompletedReview = Boolean(editReviewTitle);
+
+  if (selectedReview === null && !isEditingCompletedReview) {
     // List View
     return (
       <div className="max-w-6xl mx-auto p-8">
@@ -166,19 +173,22 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
     );
   }
 
-  // Review Detail View
+  // Review Detail View - either from list selection or editing completed review
+  const displayTitle = isEditingCompletedReview ? editReviewTitle : assignedReviews.find(r => r.id === selectedReview)?.title ?? 'Review';
+  const displayType = isEditingCompletedReview ? (editReviewType ?? 'Submission') : assignedReviews.find(r => r.id === selectedReview)?.type ?? '';
+
   return (
     <div className="max-w-6xl mx-auto p-8">
       <div className="mb-8">
         <button
-          onClick={() => setSelectedReview(null)}
+          onClick={() => isEditingCompletedReview ? onBack() : setSelectedReview(null)}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back to Reviews
+          {isEditingCompletedReview ? 'Back to Dashboard' : 'Back to Reviews'}
         </button>
         <h2 className="text-3xl font-semibold text-gray-900 mb-2">Review Submission</h2>
-        <p className="text-gray-600">Peer Submission #A547 - Academic Paper</p>
+        <p className="text-gray-600">{displayTitle}{displayType ? ` - ${displayType}` : ''}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -190,7 +200,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
             <div className="space-y-3">
               <div>
                 <span className="text-sm font-medium text-gray-700">Type:</span>
-                <span className="ml-2 text-gray-900">Academic Paper</span>
+                <span className="ml-2 text-gray-900">{displayType || 'Academic Paper'}</span>
               </div>
               <div>
                 <span className="text-sm font-medium text-gray-700">Submitted:</span>

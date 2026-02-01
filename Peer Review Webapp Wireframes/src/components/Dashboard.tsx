@@ -8,6 +8,8 @@ interface DashboardProps {
   onNavigateToSubmission: () => void;
   /** Callback to navigate to review flow */
   onNavigateToReview: () => void;
+  /** Callback to navigate to edit a specific completed review */
+  onNavigateToEditReview: (review: { title: string; type: string }) => void;
   /** Callback to navigate to feedback view for a specific submission */
   onNavigateToFeedback: (submissionTitle: string) => void;
 }
@@ -23,12 +25,12 @@ interface DashboardProps {
  * 
  * All interactive elements are functional and navigate to appropriate views
  */
-export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNavigateToFeedback }: DashboardProps) {
+export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNavigateToEditReview, onNavigateToFeedback }: DashboardProps) {
   // Mock data for submissions - in production, this would come from API/state management
   const submissions = [
-    { title: 'Research Paper: AI Ethics', date: 'Jan 20, 2026' },
-    { title: 'Code Project: React Dashboard', date: 'Jan 15, 2026' },
-    { title: 'Design Mockup: Mobile App', date: 'Jan 22, 2026' },
+    { title: 'Research Paper: AI Ethics', date: 'Jan 20, 2026', module: '1' },
+    { title: 'Code Project: React Dashboard', date: 'Jan 15, 2026', module: '3' },
+    { title: 'Design Mockup: Mobile App', date: 'Jan 22, 2026', module: '5' },
   ];
 
   // Mock data for completed reviews - in production, this would come from API/state management
@@ -145,6 +147,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900 mb-1">{submission.title}</h4>
                   <div className="flex gap-4 text-sm text-gray-600">
+                    <span>Module: {submission.module}</span>
                     <span>Submitted: {submission.date}</span>
                   </div>
                 </div>
@@ -199,9 +202,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                     </div>
                   </div>
                 </div>
-                {/* Edit Review Button - Navigates to review flow */}
+                {/* Edit Review Button - Navigates to /feedback with the selected review */}
                 <button 
-                  onClick={onNavigateToReview}
+                  onClick={() => onNavigateToEditReview({ title: review.title, type: review.type })}
                   className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-2"
                 >
                   <Eye className="w-4 h-4" />
