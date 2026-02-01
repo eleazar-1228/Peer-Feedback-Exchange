@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
 import { SubmissionFlow } from './components/SubmissionFlow';
@@ -13,83 +14,75 @@ import { LogOut } from 'lucide-react';
 type UserRole = 'student' | 'professor';
 
 /**
- * Available view types for navigation
- */
-type View = 'dashboard' | 'submission' | 'review' | 'professor' | 'feedback';
-
-/**
  * Main App Component
- * 
+ *
  * Manages application state including:
  * - Authentication status
  * - User role (student/professor)
- * - Current view/page
- * - Selected submission for feedback view
- * 
- * Handles routing between different views based on user role and actions
+ * - URL-based routing for all views
+ *
+ * Route mappings:
+ * - /login - Login page
+ * - /student - Student dashboard
+ * - /professor - Professor dashboard
+ * - /submission - Submit work flow
+ * - /feedback - Give feedback (review) flow
+ * - /viewfeedback - View feedback for a submission
  */
 export default function App() {
-  // Authentication state - tracks if user is logged in
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
-  // Current user role - determines which views are accessible
   const [currentRole, setCurrentRole] = useState<UserRole>('student');
-  
-  // Current view/page being displayed
-  const [currentView, setCurrentView] = useState<View>('dashboard');
-  
-  // Selected submission title for feedback view
-  const [selectedSubmission, setSelectedSubmission] = useState<string>('');
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  /**
-   * Handles user login
-   * Sets the user role and navigates to appropriate view based on role
-   * @param role - The role of the user logging in (student or professor)
-   */
+  // Sync role with URL when navigating via browser back/forward or direct links
+  useEffect(() => {
+    if (location.pathname === '/professor') {
+      setCurrentRole('professor');
+    } else if (['/student', '/submission', '/feedback', '/viewfeedback'].includes(location.pathname)) {
+      setCurrentRole('student');
+    }
+  }, [location.pathname]);
+
   const handleLogin = (role: UserRole) => {
     setCurrentRole(role);
     setIsLoggedIn(true);
-    // Professors go directly to professor view, students to dashboard
-    setCurrentView(role === 'professor' ? 'professor' : 'dashboard');
+    navigate(role === 'professor' ? '/professor' : '/student');
   };
 
-  /**
-   * Handles user logout
-   * Resets authentication state and returns to default view
-   */
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setCurrentView('dashboard');
     setCurrentRole('student');
-    setSelectedSubmission('');
+    navigate('/login');
   };
 
-  /**
-   * Navigates to feedback view for a specific submission
-   * @param submissionTitle - The title of the submission to view feedback for
-   */
   const handleNavigateToFeedback = (submissionTitle: string) => {
-    setSelectedSubmission(submissionTitle);
-    setCurrentView('feedback');
+    const params = new URLSearchParams({ title: submissionTitle });
+    navigate(`/viewfeedback?${params.toString()}`);
   };
 
-  // Show login page if user is not authenticated
+  // Show login page when not authenticated
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation Header - Role Switcher for Demo */}
+      {/* Navigation Header */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Peer Review Platform</h1>
           <div className="flex gap-2 items-center">
-            {/* Student View Button - Switches to student role and dashboard */}
+            {/* Student View Button */}
             <button
               onClick={() => {
                 setCurrentRole('student');
-                setCurrentView('dashboard');
+                navigate('/student');
               }}
               className={`px-4 py-2 rounded-lg ${
                 currentRole === 'student'
@@ -99,11 +92,11 @@ export default function App() {
             >
               Student View
             </button>
-            {/* Professor View Button - Switches to professor role and professor view */}
+            {/* Professor View Button */}
             <button
               onClick={() => {
                 setCurrentRole('professor');
-                setCurrentView('professor');
+                navigate('/professor');
               }}
               className={`px-4 py-2 rounded-lg ${
                 currentRole === 'professor'
@@ -113,7 +106,7 @@ export default function App() {
             >
               Professor View
             </button>
-            {/* Logout Button - Clears authentication and returns to login */}
+            {/* Logout Button */}
             <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
@@ -125,39 +118,72 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content Area - Conditionally renders views based on role and current view */}
-      
-      {/* Student Dashboard View */}
-      {currentRole === 'student' && currentView === 'dashboard' && (
-        <Dashboard
-          onNavigateToSubmission={() => setCurrentView('submission')}
-          onNavigateToReview={() => setCurrentView('review')}
-          onNavigateToFeedback={handleNavigateToFeedback}
+      {/* Main Content - URL-based routing */}
+      <Routes>
+        <Route
+          path="/student"
+          element={
+            <Dashboard
+              onNavigateToSubmission={() => navigate('/submission')}
+              onNavigateToReview={() => navigate('/feedback')}
+              onNavigateToFeedback={handleNavigateToFeedback}
+            />
+          }
         />
-      )}
-
-      {/* Student Submission Flow View */}
-      {currentRole === 'student' && currentView === 'submission' && (
-        <SubmissionFlow onBack={() => setCurrentView('dashboard')} />
-      )}
-
-      {/* Student Review Flow View */}
-      {currentRole === 'student' && currentView === 'review' && (
-        <ReviewFlow onBack={() => setCurrentView('dashboard')} />
-      )}
-
-      {/* Student Feedback View - Shows feedback for selected submission */}
-      {currentRole === 'student' && currentView === 'feedback' && (
-        <SubmissionFeedback 
-          onBack={() => setCurrentView('dashboard')}
-          submissionTitle={selectedSubmission}
+        <Route
+          path="/submission"
+          element={
+            currentRole === 'student' ? (
+              <SubmissionFlow onBack={() => navigate('/student')} />
+            ) : (
+              <Navigate to="/professor" replace />
+            )
+          }
         />
-      )}
-
-      {/* Professor View - Only accessible when role is professor */}
-      {currentRole === 'professor' && (
-        <ProfessorView />
-      )}
+        <Route
+          path="/feedback"
+          element={
+            currentRole === 'student' ? (
+              <ReviewFlow onBack={() => navigate('/student')} />
+            ) : (
+              <Navigate to="/professor" replace />
+            )
+          }
+        />
+        <Route
+          path="/viewfeedback"
+          element={
+            currentRole === 'student' ? (
+              <ViewFeedbackWrapper onBack={() => navigate('/student')} />
+            ) : (
+              <Navigate to="/professor" replace />
+            )
+          }
+        />
+        <Route
+          path="/professor"
+          element={
+            currentRole === 'professor' ? (
+              <ProfessorView />
+            ) : (
+              <Navigate to="/student" replace />
+            )
+          }
+        />
+        <Route path="/login" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/student'} replace />} />
+        <Route path="/" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/student'} replace />} />
+        <Route path="*" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/student'} replace />} />
+      </Routes>
     </div>
   );
+}
+
+/**
+ * Wrapper to read submission title from URL search params for viewfeedback route
+ */
+function ViewFeedbackWrapper({ onBack }: { onBack: () => void }) {
+  const [searchParams] = useSearchParams();
+  const submissionTitle = searchParams.get('title') || '';
+
+  return <SubmissionFeedback onBack={onBack} submissionTitle={submissionTitle} />;
 }
