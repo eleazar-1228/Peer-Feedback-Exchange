@@ -40,8 +40,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    course: '',
-    reviewCount: 3,
+    module: '',
   });
   
   // Uploaded files list
@@ -93,7 +92,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
       return submissionType !== '';
     }
     if (step === 2) {
-      return formData.title.trim() !== '' && formData.course !== '';
+      return formData.title.trim() !== '' && formData.module !== '';
     }
     if (step === 3) {
       return uploadedFiles.length > 0 || submissionLink.trim() !== '';
@@ -265,37 +264,25 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                 />
               </div>
 
-              {/* Course Selection - Required */}
+              {/* Module Selection - Required */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Assignment / Course
+                  Select Module
                 </label>
                 <select 
-                  value={formData.course}
-                  onChange={(e) => setFormData(prev => ({ ...prev, course: e.target.value }))}
+                  value={formData.module}
+                  onChange={(e) => setFormData(prev => ({ ...prev, module: e.target.value }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
-                  <option value="">Select assignment...</option>
-                  <option value="CS 101 - Final Project">CS 101 - Final Project</option>
-                  <option value="ENGL 202 - Research Paper">ENGL 202 - Research Paper</option>
-                  <option value="DES 301 - Portfolio Review">DES 301 - Portfolio Review</option>
+                  <option value="">Select module...</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
                 </select>
-              </div>
-
-              {/* Review Count Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Number of Reviews Requested
-                </label>
-                <input
-                  type="number"
-                  value={formData.reviewCount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, reviewCount: parseInt(e.target.value) || 3 }))}
-                  min={1}
-                  max={5}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
               </div>
             </div>
 
@@ -434,6 +421,11 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
               )}
 
               <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Module</h4>
+                <p className="text-gray-900">{formData.module || 'Not selected'}</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
                 <h4 className="font-medium text-gray-700 mb-2">Files</h4>
                 {uploadedFiles.length > 0 ? (
                   uploadedFiles.map((file, index) => (
@@ -452,10 +444,6 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                 )}
               </div>
 
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-700 mb-2">Reviews Requested</h4>
-                <p className="text-gray-900">{formData.reviewCount} peer reviews</p>
-              </div>
             </div>
 
             {/* Important Notice */}
