@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeft, FileText, Star, MessageSquare, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
+import { Routes, Route } from "react-router-dom";
+import { FeedbackPage } from "./pages/FeedbackPage";
+
 
 /**
  * Props for the ReviewFlow component
