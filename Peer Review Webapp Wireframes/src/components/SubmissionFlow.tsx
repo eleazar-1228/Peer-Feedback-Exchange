@@ -240,6 +240,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
             <div className="pt-4 flex justify-end">
               <button
                 onClick={handleNext}
+                disabled={!isStep1Valid()}
                 className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 Next
@@ -414,6 +415,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
               </button>
               <button
                 onClick={handleSubmit}
+                disabled={!isStep2Valid()}
                 className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 Submit for Review
