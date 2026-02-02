@@ -1,142 +1,124 @@
 import { useState } from 'react';
-import { ArrowLeft, Upload, FileText, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Link as LinkIcon } from 'lucide-react';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Checkbox } from './ui/checkbox';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Button } from './ui/button';
+import { format } from 'date-fns';
 
-/**
- * Props for the SubmissionFlow component
- */
 interface SubmissionFlowProps {
-  /** Callback to navigate back to dashboard */
   onBack: () => void;
 }
 
-/**
- * File interface for uploaded files
- */
-interface UploadedFile {
-  name: string;
-  size: string;
-  file: File;
-}
-
-/**
- * SubmissionFlow Component
- * 
- * Multi-step form for submitting work for peer review:
- * 1. Select submission type (Academic Paper, Code Project, Design Work)
- * 2. Enter submission details (title, description, course, review count)
- * 3. Upload files or provide links
- * 4. Review and confirm submission
- * 
- * Handles form state, validation, and file uploads
- */
 export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
-  // Current step in the submission process (1-4)
-  const [step, setStep] = useState(1);
-  
-  // Selected submission type
-  const [submissionType, setSubmissionType] = useState('');
-  
-  // Form data for submission details
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    module: '',
+  const [currentStep, setCurrentStep] = useState(1);
+  const [course, setCourse] = useState('');
+  const [week, setWeek] = useState('');
+  const [projectTitle, setProjectTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [projectDocument, setProjectDocument] = useState('');
+  const [projectTeam, setProjectTeam] = useState('');
+  const [feedbackCategories, setFeedbackCategories] = useState({
+    general: false,
+    technical: false,
+    presentation: false,
+    contentStructure: false,
   });
-  
-  // Uploaded files list
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  
-  // Link URL for alternative submission method
-  const [submissionLink, setSubmissionLink] = useState('');
+  const [dueDate, setDueDate] = useState<Date>();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [touched, setTouched] = useState({
+    course: false,
+    week: false,
+    projectTitle: false,
+    projectDocument: false,
+    projectTeam: false,
+    feedbackCategories: false,
+    dueDate: false,
+  });
 
-  /**
-   * Handles file selection and upload
-   * @param e - File input change event
-   */
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      const newFiles = Array.from(files).map(file => ({
-        name: file.name,
-        size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-        file: file
-      }));
-      setUploadedFiles(prev => [...prev, ...newFiles]);
+  const handleCategoryChange = (category: keyof typeof feedbackCategories) => {
+    setFeedbackCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+    setTouched(prev => ({ ...prev, feedbackCategories: true }));
+  };
+
+  const isValidUrl = (url: string) => {
+    if (!url) return false;
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
     }
   };
 
-  /**
-   * Removes a file from the upload list
-   * @param index - Index of file to remove
-   */
-  const handleRemoveFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  const atLeastOneCategorySelected = Object.values(feedbackCategories).some(v => v);
+
+  const isStep1Valid = () => {
+    return course && week && projectTitle && projectTeam;
   };
 
-  /**
-   * Handles adding a submission link
-   */
-  const handleAddLink = () => {
-    if (submissionLink.trim()) {
-      // In production, would validate URL format
-      alert('Link added successfully!');
+  const isStep2Valid = () => {
+    return isValidUrl(projectDocument) && atLeastOneCategorySelected && dueDate;
+  };
+
+  const isFormValid = () => {
+    return isStep1Valid() && isStep2Valid();
+  };
+
+  const handleNext = () => {
+    // Mark all step 1 fields as touched
+    setTouched(prev => ({
+      ...prev,
+      course: true,
+      week: true,
+      projectTitle: true,
+      projectTeam: true,
+    }));
+
+    if (isStep1Valid()) {
+      setCurrentStep(2);
     }
   };
 
-  /**
-   * Validates current step before proceeding
-   * @returns true if step is valid, false otherwise
-   */
-  const validateStep = (): boolean => {
-    if (step === 1) {
-      return submissionType !== '';
-    }
-    if (step === 2) {
-      return formData.title.trim() !== '' && formData.module !== '';
-    }
-    if (step === 3) {
-      return uploadedFiles.length > 0 || submissionLink.trim() !== '';
-    }
-    return true;
+  const handleBack = () => {
+    setCurrentStep(1);
   };
 
-  /**
-   * Handles step navigation
-   * @param nextStep - The step to navigate to
-   */
-  const handleStepChange = (nextStep: number) => {
-    if (nextStep > step && !validateStep()) {
-      alert('Please complete all required fields before proceeding');
-      return;
+  const handleSubmit = () => {
+    // Mark all step 2 fields as touched
+    setTouched(prev => ({
+      ...prev,
+      projectDocument: true,
+      feedbackCategories: true,
+      dueDate: true,
+    }));
+
+    if (isFormValid()) {
+      // Handle submission logic
+      onBack();
     }
-    setStep(nextStep);
   };
 
-  /**
-   * Handles final submission
-   */
-  const handleFinalSubmit = () => {
-    if (!validateStep()) {
-      alert('Please complete all required fields');
-      return;
-    }
-    
-    // In production, would submit to backend API
-    console.log('Submission data:', {
-      type: submissionType,
-      ...formData,
-      files: uploadedFiles,
-      link: submissionLink
-    });
-    
-    alert('Submission successful! Your work has been submitted for peer review.');
-    onBack();
+  const handleBlur = (field: keyof typeof touched) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+  };
+
+  const getFieldValidationClass = (isValid: boolean, isTouched: boolean) => {
+    if (!isTouched) return '';
+    return isValid ? 'border-green-500 focus-visible:ring-green-500' : 'border-red-500 focus-visible:ring-red-500';
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      {/* Header with Back Navigation */}
-      <div className="mb-8">
+    <div className="max-w-3xl mx-auto p-8">
+      {/* Header */}
+      <div className="mb-6">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
@@ -145,330 +127,294 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
           Back to Dashboard
         </button>
         <h2 className="text-3xl font-semibold text-gray-900 mb-2">Submit Work for Review</h2>
-        <p className="text-gray-600">Follow the steps to submit your work</p>
+        <p className="text-gray-600">Complete the following steps to submit your work for peer review</p>
       </div>
 
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {[
-            { num: 1, label: 'Type' },
-            { num: 2, label: 'Details' },
-            { num: 3, label: 'Upload' },
-            { num: 4, label: 'Review' },
-          ].map((s, idx) => (
-            <div key={s.num} className="flex items-center flex-1">
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    step >= s.num
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}
-                >
-                  {s.num}
-                </div>
-                <span className="mt-2 text-sm text-gray-600">{s.label}</span>
-              </div>
-              {idx < 3 && (
-                <div
-                  className={`flex-1 h-1 mx-4 ${
-                    step > s.num ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                />
-              )}
+      {/* Step Indicator */}
+      <div className="mb-6">
+        <div className="flex items-center">
+          <div className="flex items-center flex-1">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+              currentStep === 1 ? 'bg-purple-600 text-white' : 'bg-green-500 text-white'
+            }`}>
+              {currentStep === 1 ? '1' : '✓'}
             </div>
-          ))}
+            <div className="ml-3">
+              <div className="text-sm font-medium text-gray-900">Course & Project Info</div>
+            </div>
+          </div>
+          <div className={`flex-1 h-0.5 mx-4 ${currentStep === 2 ? 'bg-purple-600' : 'bg-gray-300'}`}></div>
+          <div className="flex items-center flex-1">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+              currentStep === 2 ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-600'
+            }`}>
+              2
+            </div>
+            <div className="ml-3">
+              <div className={`text-sm font-medium ${currentStep === 2 ? 'text-gray-900' : 'text-gray-500'}`}>
+                Submission Details
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Step Content */}
-      <div className="bg-white rounded-lg border border-gray-200 p-8">
-        {step === 1 && (
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Select Submission Type</h3>
-            <p className="text-gray-600 mb-6">What type of work are you submitting?</p>
-            
-            <div className="grid grid-cols-1 gap-4">
-              {[
-                { type: 'academic', label: 'Academic Paper', icon: FileText, desc: 'Research papers, essays, reports' },
-                { type: 'code', label: 'Code Project', icon: Upload, desc: 'Software projects, code repositories' },
-                { type: 'design', label: 'Design Work', icon: LinkIcon, desc: 'UI/UX designs, mockups, prototypes' },
-              ].map((option) => (
-                <button
-                  key={option.type}
-                  onClick={() => setSubmissionType(option.type)}
-                  className={`p-6 border-2 rounded-lg text-left transition-all ${
-                    submissionType === option.type
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <option.icon className={`w-6 h-6 ${submissionType === option.type ? 'text-blue-600' : 'text-gray-400'}`} />
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-1">{option.label}</h4>
-                      <p className="text-sm text-gray-600">{option.desc}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="mt-8 flex justify-end">
-              <button
-                onClick={() => handleStepChange(2)}
-                disabled={!submissionType}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Submission Details</h3>
-            <p className="text-gray-600 mb-6">Provide information about your submission</p>
-
-            {/* Submission Details Form */}
-            <div className="space-y-6">
-              {/* Title Input - Required */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter submission title"
-                  value={formData.title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              {/* Description Textarea - Optional */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  rows={4}
-                  placeholder="Provide a brief description of your work"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Module Selection - Required */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Module
-                </label>
-                <select 
-                  value={formData.module}
-                  onChange={(e) => setFormData(prev => ({ ...prev, module: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select module...</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                  <option value="6">6</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="mt-8 flex justify-between">
-              <button
-                onClick={() => handleStepChange(1)}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => handleStepChange(3)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Upload Files</h3>
-            <p className="text-gray-600 mb-6">Upload your work for peer review</p>
-
-            {/* File Upload Area */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
-              <input
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                accept=".pdf,.docx,.zip,.png,.jpg,.jpeg"
+      {/* Form */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 overflow-visible">
+        {currentStep === 1 && (
+          <div className="space-y-5">
+            {/* Step 1: Course & Project Info */}
+            <div>
+              <Label htmlFor="course" className="text-sm font-medium text-gray-700">
+                Course/class/semester <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="course"
+                type="text"
+                placeholder="MET CS633 – Spring 1, 2026"
+                value={course}
+                onChange={(e) => setCourse(e.target.value)}
+                onBlur={() => handleBlur('course')}
+                className={`mt-1.5 ${getFieldValidationClass(!!course, touched.course)}`}
+                required
               />
-              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-gray-900 mb-2">Drop files here or click to browse</h4>
-              <p className="text-sm text-gray-600 mb-4">Supported formats: PDF, DOCX, ZIP, PNG, JPG</p>
-              <button 
-                type="button"
-                onClick={() => document.querySelector('input[type="file"]')?.click()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Select Files
-              </button>
+              <p className="mt-1 text-xs text-gray-500">Enter course code, name, and semester.</p>
             </div>
 
-            {/* Uploaded Files List */}
-            <div className="mt-6 space-y-2">
-              {uploadedFiles.map((file, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-gray-600" />
-                    <div>
-                      <p className="font-medium text-gray-900">{file.name}</p>
-                      <p className="text-sm text-gray-600">{file.size}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => handleRemoveFile(index)}
-                    className="text-red-600 hover:text-red-700 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="week" className="text-sm font-medium text-gray-700">
+                  Week/module <span className="text-red-500">*</span>
+                </Label>
+                <Select value={week} onValueChange={(value) => { setWeek(value); handleBlur('week'); }}>
+                  <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!week, touched.week)}`}>
+                    <SelectValue placeholder="Select week..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="week1">Week 1</SelectItem>
+                    <SelectItem value="week2">Week 2</SelectItem>
+                    <SelectItem value="week3">Week 3</SelectItem>
+                    <SelectItem value="week4">Week 4</SelectItem>
+                    <SelectItem value="week5">Week 5</SelectItem>
+                    <SelectItem value="week6">Week 6</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-gray-500">Select the applicable week.</p>
+              </div>
 
-            {/* Alternative: Link Input */}
-            <div className="mt-8">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Or provide a link
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="https://github.com/username/project"
-                  value={submissionLink}
-                  onChange={(e) => setSubmissionLink(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <div>
+                <Label htmlFor="projectTeam" className="text-sm font-medium text-gray-700">
+                  Project team <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="projectTeam"
+                  type="text"
+                  placeholder="Team Four"
+                  value={projectTeam}
+                  onChange={(e) => setProjectTeam(e.target.value)}
+                  onBlur={() => handleBlur('projectTeam')}
+                  className={`mt-1.5 ${getFieldValidationClass(!!projectTeam, touched.projectTeam)}`}
+                  required
                 />
-                <button 
-                  type="button"
-                  onClick={handleAddLink}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  Add Link
-                </button>
+                <p className="mt-1 text-xs text-gray-500">Enter team name or number.</p>
               </div>
             </div>
 
-            {/* Navigation Buttons */}
-            <div className="mt-8 flex justify-between">
+            <div>
+              <Label htmlFor="projectTitle" className="text-sm font-medium text-gray-700">
+                Project title <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="projectTitle"
+                type="text"
+                placeholder="BU Peer Review Platform"
+                value={projectTitle}
+                onChange={(e) => setProjectTitle(e.target.value)}
+                onBlur={() => handleBlur('projectTitle')}
+                className={`mt-1.5 ${getFieldValidationClass(!!projectTitle, touched.projectTitle)}`}
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">Enter a clear, descriptive title for your project.</p>
+            </div>
+
+            <div className="pt-4 flex justify-end">
               <button
-                onClick={() => handleStepChange(2)}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                onClick={handleNext}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Back
-              </button>
-              <button
-                onClick={() => handleStepChange(4)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Continue
+                Next
               </button>
             </div>
           </div>
         )}
 
-        {step === 4 && (
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Review & Submit</h3>
-            <p className="text-gray-600 mb-6">Review your submission before finalizing</p>
-
-            {/* Submission Summary - Review before final submission */}
-            <div className="space-y-6">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-700 mb-2">Submission Type</h4>
-                <p className="text-gray-900">
-                  {submissionType === 'academic' ? 'Academic Paper' : 
-                   submissionType === 'code' ? 'Code Project' : 
-                   submissionType === 'design' ? 'Design Work' : 'Not selected'}
-                </p>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-700 mb-2">Title</h4>
-                <p className="text-gray-900">{formData.title || 'Not provided'}</p>
-              </div>
-
-              {formData.description && (
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-2">Description</h4>
-                  <p className="text-gray-900">{formData.description}</p>
-                </div>
-              )}
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-700 mb-2">Module</h4>
-                <p className="text-gray-900">{formData.module || 'Not selected'}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-700 mb-2">Files</h4>
-                {uploadedFiles.length > 0 ? (
-                  uploadedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-2">
-                      <FileText className="w-4 h-4 text-gray-600" />
-                      <p className="text-gray-900">{file.name} ({file.size})</p>
-                    </div>
-                  ))
-                ) : submissionLink ? (
-                  <div className="flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-gray-600" />
-                    <p className="text-gray-900">{submissionLink}</p>
-                  </div>
-                ) : (
-                  <p className="text-gray-900">No files or links provided</p>
-                )}
-              </div>
-
+        {currentStep === 2 && (
+          <div className="space-y-5">
+            {/* Step 2: Submission Details */}
+            <div>
+              <Label htmlFor="description" className="text-sm font-medium text-gray-700">
+                Description (feedback request context)
+              </Label>
+              <Textarea
+                id="description"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="mt-1.5"
+                placeholder="Describe the type of feedback you are seeking."
+              />
+              <p className="mt-1 text-xs text-gray-500">Briefly describe what kind of feedback you are seeking.</p>
             </div>
 
-            {/* Important Notice */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex gap-3">
+            <div>
+              <Label htmlFor="projectDocument" className="text-sm font-medium text-gray-700">
+                Project document <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative mt-1.5">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <LinkIcon className="w-4 h-4 text-gray-400" />
+                </div>
+                <Input
+                  id="projectDocument"
+                  type="url"
+                  placeholder="https://drive.google.com/..."
+                  value={projectDocument}
+                  onChange={(e) => setProjectDocument(e.target.value)}
+                  onBlur={() => handleBlur('projectDocument')}
+                  className={`pl-10 ${getFieldValidationClass(isValidUrl(projectDocument), touched.projectDocument)}`}
+                  required
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-500">Provide a read-only Google Drive or hosted document link.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Feedback category <span className="text-red-500">*</span>
+                </Label>
+                <div className={`space-y-2.5 p-3 rounded-lg border-2 ${
+                  touched.feedbackCategories && !atLeastOneCategorySelected 
+                    ? 'border-red-500 bg-red-50' 
+                    : touched.feedbackCategories && atLeastOneCategorySelected
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-200'
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="general"
+                      checked={feedbackCategories.general}
+                      onCheckedChange={() => handleCategoryChange('general')}
+                    />
+                    <label htmlFor="general" className="text-sm text-gray-700 cursor-pointer">
+                      General Feedback
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="technical"
+                      checked={feedbackCategories.technical}
+                      onCheckedChange={() => handleCategoryChange('technical')}
+                    />
+                    <label htmlFor="technical" className="text-sm text-gray-700 cursor-pointer">
+                      Technical Feedback
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="presentation"
+                      checked={feedbackCategories.presentation}
+                      onCheckedChange={() => handleCategoryChange('presentation')}
+                    />
+                    <label htmlFor="presentation" className="text-sm text-gray-700 cursor-pointer">
+                      Presentation Feedback
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="contentStructure"
+                      checked={feedbackCategories.contentStructure}
+                      onCheckedChange={() => handleCategoryChange('contentStructure')}
+                    />
+                    <label htmlFor="contentStructure" className="text-sm text-gray-700 cursor-pointer">
+                      Content Structure Feedback
+                    </label>
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Select at least one category.</p>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Due date <span className="text-red-500">*</span>
+                </Label>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={`w-full justify-start text-left font-normal px-4 py-2 border rounded-md ${
+                        touched.dueDate && !dueDate
+                          ? "border-red-500"
+                          : touched.dueDate && dueDate
+                          ? "border-green-500"
+                          : "border-gray-300"
+                      }`}
+                      onClick={() => {
+                        handleBlur("dueDate");
+                        setDatePickerOpen(true);
+                      }}
+                    >
+                      {dueDate ? format(dueDate, "dd/MM/yyyy") : "Select date..."}
+                    </button>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    className="w-auto p-3 bg-white border border-gray-200 shadow-lg rounded-md z-50"
+                    align="start"
+                  >
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={(date) => {
+                        setDueDate(date);
+                        handleBlur("dueDate");
+                        setDatePickerOpen(false);
+                      }}
+                      disabled={(date) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return date < today;
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <p className="mt-1 text-xs text-gray-500">Select a future date for deadline.</p>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex gap-2.5">
               <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-blue-900 mb-1">Important</h4>
-                <p className="text-sm text-blue-800">
+                <h4 className="font-medium text-blue-900 mb-0.5 text-sm">Important</h4>
+                <p className="text-xs text-blue-800">
                   Once submitted, your work will be anonymously assigned to peers for review. 
                   You will receive feedback within the specified deadline.
                 </p>
               </div>
             </div>
 
-            {/* Final Navigation Buttons */}
-            <div className="mt-8 flex justify-between">
+            <div className="pt-4 flex justify-between">
               <button
-                onClick={() => handleStepChange(3)}
+                onClick={handleBack}
                 className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Back
               </button>
               <button
-                onClick={handleFinalSubmit}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                onClick={handleSubmit}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 Submit for Review
               </button>

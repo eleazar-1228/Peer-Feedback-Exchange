@@ -8,6 +8,7 @@ import { ProfessorView } from './components/ProfessorView';
 import { SubmissionFeedback } from './components/SubmissionFeedback';
 import { LogOut } from 'lucide-react';
 
+
 /**
  * User role types for the application
  */
@@ -88,7 +89,7 @@ export default function App() {
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
             >
               <LogOut className="w-4 h-4" />
-              Logout
+  
             </button>
           </div>
         </div>
