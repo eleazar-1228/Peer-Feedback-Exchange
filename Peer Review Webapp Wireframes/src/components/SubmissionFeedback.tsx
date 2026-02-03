@@ -1,26 +1,10 @@
 import { ArrowLeft, Star, MessageSquare, Download, FileText, Calendar, User } from 'lucide-react';
 
-/**
- * Props for the SubmissionFeedback component
- */
 interface SubmissionFeedbackProps {
-  /** Callback to navigate back to dashboard */
   onBack: () => void;
-  /** Title of the submission to display feedback for */
   submissionTitle: string;
 }
 
-/**
- * SubmissionFeedback Component
- * 
- * Displays peer review feedback for a student's submission:
- * - Overall rating summary
- * - Submission preview
- * - Individual peer reviews with ratings, strengths, improvements, and comments
- * - Actions to export feedback or submit revisions
- * 
- * All interactive elements are functional
- */
 export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedbackProps) {
   const feedbackData = [
     {
@@ -100,14 +84,7 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
               </div>
             </div>
           </div>
-          {/* Download Submission Button */}
-          <button 
-            onClick={() => {
-              // In production, would download the submission file
-              alert('Download submission feature - would download the submission file');
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
+          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
             <Download className="w-4 h-4" />
             Download Submission
           </button>
@@ -166,14 +143,7 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
             </p>
           </div>
         </div>
-        {/* View Full Submission Button */}
-        <button 
-          onClick={() => {
-            // In production, would open full submission viewer
-            alert('View full submission feature - would open full document viewer');
-          }}
-          className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-2"
-        >
+        <button className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-2">
           <FileText className="w-4 h-4" />
           View Full Submission
         </button>
@@ -256,24 +226,10 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
 
       {/* Action Buttons */}
       <div className="mt-8 flex gap-4">
-        {/* Export Feedback Button */}
-        <button 
-          onClick={() => {
-            // In production, would export feedback as PDF/CSV
-            alert('Export feedback feature - would generate and download feedback report');
-          }}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
-        >
+        <button className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
           Export All Feedback
         </button>
-        {/* Submit Revision Button */}
-        <button 
-          onClick={() => {
-            // In production, would navigate to revision submission flow
-            alert('Submit revision feature - would navigate to revision submission form');
-          }}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-        >
+        <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
           Submit Revision
         </button>
       </div>

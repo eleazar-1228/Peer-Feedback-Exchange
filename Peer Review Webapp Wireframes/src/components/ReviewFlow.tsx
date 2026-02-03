@@ -1,14 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, Star, MessageSquare, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
-import { Routes, Route } from "react-router-dom";
-import { FeedbackPage } from "./pages/FeedbackPage";
+import { ArrowLeft, FileText, Star, ExternalLink } from 'lucide-react';
+import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
 
-
-/**
- * Props for the ReviewFlow component
- */
 interface ReviewFlowProps {
-  /** Callback to navigate back to dashboard */
   onBack: () => void;
   /** When set, shows the review form directly for editing this completed review */
   editReviewTitle?: string;
@@ -16,111 +11,110 @@ interface ReviewFlowProps {
   editReviewType?: string;
 }
 
-/**
- * ReviewFlow Component
- * 
- * Handles the peer review process:
- * - Lists assigned reviews with status (Pending/Completed)
- * - Allows selection of a review to provide feedback
- * - Review form with rating, strengths, improvements, and detailed comments
- * - Form validation and submission handling
- * 
- * Reviews are anonymous - reviewer identity is not shown to submitter
- */
 export function ReviewFlow({ onBack, editReviewTitle, editReviewType }: ReviewFlowProps) {
-  // Currently selected review ID (null if viewing list)
   const [selectedReview, setSelectedReview] = useState<number | null>(null);
-  
-  // Overall rating for the review (1-5 stars)
   const [rating, setRating] = useState(0);
-  
-  // Selected strengths checkboxes
-  const [selectedStrengths, setSelectedStrengths] = useState<string[]>([]);
-  
-  // Detailed feedback text
-  const [detailedFeedback, setDetailedFeedback] = useState('');
-  
-  // Suggestions for improvement text
-  const [suggestions, setSuggestions] = useState('');
-  
-  // Quick feedback selection (strong/needs work)
-  const [quickFeedback, setQuickFeedback] = useState<'strong' | 'needs-work' | null>(null);
+  const [clarity, setClarity] = useState<number | null>(null);
+  const [organization, setOrganization] = useState<number | null>(null);
+  const [technicalSoundness, setTechnicalSoundness] = useState<number | null>(null);
+  const [usability, setUsability] = useState<number | null>(null);
+  const [strengths, setStrengths] = useState('');
+  const [improvements, setImprovements] = useState('');
+  const [oneChange, setOneChange] = useState('');
+  const [otherObservations, setOtherObservations] = useState('');
 
-  // Mock data for assigned reviews - in production, would come from API
   const assignedReviews = [
-    { id: 1, title: 'Peer Submission #A547', type: 'Academic Paper', due: 'Jan 26, 2026', status: 'Pending' },
-    { id: 2, title: 'Peer Submission #B892', type: 'Code Review', due: 'Jan 25, 2026', status: 'Pending' },
-    { id: 3, title: 'Peer Submission #C123', type: 'Design Work', due: 'Jan 28, 2026', status: 'Completed' },
+    { 
+      id: 1, 
+      title: 'BU Peer Review Platform', 
+      type: 'Academic Paper', 
+      due: 'Jan 26, 2026',
+      submitted: 'Jan 20, 2026',
+      course: 'MET CS633 – Spring 1, 2026',
+      week: 'Week 3',
+      submittedWorkUrl: 'https://drive.google.com/document/d/example123',
+      status: 'Pending' 
+    },
+    { 
+      id: 2, 
+      title: 'Mobile Banking App', 
+      type: 'Code Review', 
+      due: 'Jan 25, 2026',
+      submitted: 'Jan 18, 2026',
+      course: 'MET CS601 – Spring 1, 2026',
+      week: 'Week 4',
+      submittedWorkUrl: 'https://drive.google.com/document/d/example456',
+      status: 'Pending' 
+    },
+    { 
+      id: 3, 
+      title: 'E-commerce Dashboard', 
+      type: 'Design Work', 
+      due: 'Jan 28, 2026',
+      submitted: 'Jan 15, 2026',
+      course: 'MET CS633 – Spring 1, 2026',
+      week: 'Week 2',
+      submittedWorkUrl: 'https://drive.google.com/document/d/example789',
+      status: 'Completed' 
+    },
   ];
 
-  /**
-   * Handles strength checkbox toggle
-   * @param strength - The strength option being toggled
-   */
-  const handleStrengthToggle = (strength: string) => {
-    setSelectedStrengths(prev => 
-      prev.includes(strength) 
-        ? prev.filter(s => s !== strength)
-        : [...prev, strength]
-    );
-  };
-
-  /**
-   * Handles review form submission
-   * @param e - Form submit event
-   */
-  const handleSubmitReview = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    if (rating === 0) {
-      alert('Please provide an overall rating');
-      return;
-    }
-    
-    if (!detailedFeedback.trim()) {
-      alert('Please provide detailed feedback');
-      return;
-    }
-    
-    // In production, would submit to backend API
-    console.log('Review submitted:', {
-      reviewId: selectedReview,
-      rating,
-      strengths: selectedStrengths,
-      detailedFeedback,
-      suggestions,
-      quickFeedback
-    });
-    
-    // Show success message and reset form
-    alert('Review submitted successfully!');
-    setSelectedReview(null);
-    setRating(0);
-    setSelectedStrengths([]);
-    setDetailedFeedback('');
-    setSuggestions('');
-    setQuickFeedback(null);
-  };
-
-  /**
-   * Handles saving review as draft
-   */
-  const handleSaveDraft = () => {
-    // In production, would save to backend/localStorage
-    console.log('Draft saved:', {
-      reviewId: selectedReview,
-      rating,
-      strengths: selectedStrengths,
-      detailedFeedback,
-      suggestions,
-      quickFeedback
-    });
-    alert('Draft saved successfully!');
-  };
+  const selectedSubmission = assignedReviews.find(r => r.id === selectedReview);
 
   // When editing a completed review from My Completed Reviews, show form directly
   const isEditingCompletedReview = Boolean(editReviewTitle);
+
+  const isFormValid = () => {
+    // At least one feedback section must be completed
+    const hasTextFeedback = strengths.trim() || improvements.trim() || oneChange.trim() || otherObservations.trim();
+    const hasRating = rating > 0;
+    const hasScoring = clarity !== null || organization !== null || technicalSoundness !== null || usability !== null;
+    
+    return hasTextFeedback || hasRating || hasScoring;
+  };
+
+  const handleSubmit = () => {
+    if (isFormValid()) {
+      // Handle submission logic
+      if (isEditingCompletedReview) {
+        onBack();
+      } else {
+        setSelectedReview(null);
+      }
+    }
+  };
+
+  const LikertScale = ({ 
+    label, 
+    value, 
+    onChange 
+  }: { 
+    label: string; 
+    value: number | null; 
+    onChange: (val: number) => void;
+  }) => (
+    <div className="space-y-1">
+      <Label className="text-xs font-medium text-gray-700">{label}</Label>
+      <div className="flex gap-1.5">
+        {[1, 2, 3, 4, 5].map((score) => (
+          <button
+            key={score}
+            type="button"
+            onClick={() => onChange(score)}
+            className={`flex-1 py-1.5 px-1 text-xs rounded border-2 transition-all ${
+              value === score
+                ? 'border-purple-600 bg-purple-50 text-purple-900 font-medium'
+                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="text-center">
+              <div className="font-semibold">{score}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   if (selectedReview === null && !isEditingCompletedReview) {
     // List View
@@ -176,202 +170,221 @@ export function ReviewFlow({ onBack, editReviewTitle, editReviewType }: ReviewFl
     );
   }
 
-  // Review Detail View - either from list selection or editing completed review
-  const displayTitle = isEditingCompletedReview ? editReviewTitle : assignedReviews.find(r => r.id === selectedReview)?.title ?? 'Review';
-  const displayType = isEditingCompletedReview ? (editReviewType ?? 'Submission') : assignedReviews.find(r => r.id === selectedReview)?.type ?? '';
+  // For editing completed review, use the passed title/type; otherwise use selected submission
+  const displayTitle = isEditingCompletedReview ? editReviewTitle : selectedSubmission?.title;
+  const displayType = isEditingCompletedReview ? editReviewType : selectedSubmission?.type;
+  const displayCourse = isEditingCompletedReview ? 'MET CS633 – Spring 1, 2026' : selectedSubmission?.course;
+  const displayWeek = isEditingCompletedReview ? 'Week 3' : selectedSubmission?.week;
+  const displaySubmitted = isEditingCompletedReview ? 'Jan 20, 2026' : selectedSubmission?.submitted;
+  const displayDue = isEditingCompletedReview ? 'Jan 26, 2026' : selectedSubmission?.due;
+  const displayWorkUrl = isEditingCompletedReview ? 'https://drive.google.com/document/d/example' : selectedSubmission?.submittedWorkUrl;
 
+  // Review Detail View with Submission Details
   return (
-    <div className="max-w-6xl mx-auto p-8">
-      <div className="mb-8">
+    <div className="max-w-4xl mx-auto p-8">
+      {/* Header */}
+      <div className="mb-6">
         <button
           onClick={() => isEditingCompletedReview ? onBack() : setSelectedReview(null)}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
-          {isEditingCompletedReview ? 'Back to Dashboard' : 'Back to Reviews'}
+          {isEditingCompletedReview ? 'Back to Dashboard' : 'Back to Review Assignments'}
         </button>
-        <h2 className="text-3xl font-semibold text-gray-900 mb-2">Review Submission</h2>
-        <p className="text-gray-600">{displayTitle}{displayType ? ` - ${displayType}` : ''}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Submission Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Submission Info */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Submission Details</h3>
-            <div className="space-y-3">
-              <div>
-                <span className="text-sm font-medium text-gray-700">Type:</span>
-                <span className="ml-2 text-gray-900">{displayType || 'Academic Paper'}</span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-700">Submitted:</span>
-                <span className="ml-2 text-gray-900">Jan 20, 2026</span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-700">Due Date:</span>
-                <span className="ml-2 text-gray-900">Jan 26, 2026</span>
-              </div>
-            </div>
-          </div>
-
-          {/* File Viewer Placeholder */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Submitted Work</h3>
-            <div className="border-2 border-gray-200 rounded-lg p-12 bg-gray-50 text-center">
-              <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4">Document Viewer</p>
-              <div className="space-y-2">
-                <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  View Document
-                </button>
-                <button className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-                  Download PDF
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Anonymous Notice */}
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+      {/* Submission Details Card */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Submission Details</h3>
+        
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <h4 className="font-medium text-yellow-900 mb-1">Anonymous Review</h4>
-              <p className="text-sm text-yellow-800">
-                All reviews are anonymous. Do not include identifying information in your feedback.
-              </p>
+              <p className="text-sm text-gray-600 mb-1">Project title</p>
+              <p className="font-medium text-gray-900">{displayTitle}</p>
             </div>
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Course/semester</p>
+              <p className="font-medium text-gray-900">{displayCourse}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Week/module</p>
+              <p className="font-medium text-gray-900">{displayWeek}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Submitted date</p>
+              <p className="font-medium text-gray-900">{displaySubmitted}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Due date</p>
+              <p className="font-medium text-gray-900">{displayDue}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Submitted work</p>
+            <a
+              href={displayWorkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span className="font-medium">Open Submitted Work</span>
+            </a>
           </div>
         </div>
+      </div>
 
-        {/* Review Form */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Your Review</h3>
+      {/* Review Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="mb-4">
+          <h3 className="text-xl font-semibold text-gray-900 mb-1">Your Review</h3>
+          <p className="text-sm text-gray-600">Provide constructive feedback for your peer's submission.</p>
+        </div>
 
-            {/* Overall Rating */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Overall Rating *
-              </label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    className="transition-colors"
-                  >
-                    <Star
-                      className={`w-8 h-8 ${
-                        star <= rating
-                          ? 'fill-yellow-400 text-yellow-400'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
+        <div className="space-y-5">
+          {/* SECTION 1: Overall Rating */}
+          <div className="pb-4 border-b border-gray-200">
+            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+              Overall rating
+            </Label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  className="transition-colors"
+                  type="button"
+                >
+                  <Star
+                    className={`w-7 h-7 ${
+                      star <= rating
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'text-gray-300'
+                    }`}
+                  />
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Strengths Selection - Checkboxes for common strengths */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Strengths (select all that apply)
-              </label>
-              <div className="space-y-2">
-                {['Clear structure', 'Well-researched', 'Strong arguments', 'Good writing quality'].map((strength) => (
-                  <label key={strength} className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-gray-300"
-                      checked={selectedStrengths.includes(strength)}
-                      onChange={() => handleStrengthToggle(strength)}
-                    />
-                    <span className="text-sm text-gray-700">{strength}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Detailed Feedback Textarea - Required field */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Detailed Feedback *
-              </label>
-              <textarea
-                rows={6}
-                placeholder="Provide constructive feedback..."
-                value={detailedFeedback}
-                onChange={(e) => setDetailedFeedback(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                required
+          {/* SECTION 2: Scoring (Likert Scales) - 2 Column Grid */}
+          <div className="pb-4 border-b border-gray-200">
+            <h4 className="font-semibold text-gray-900 mb-3">Scoring</h4>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <LikertScale
+                label="Clarity"
+                value={clarity}
+                onChange={setClarity}
+              />
+              <LikertScale
+                label="Organization"
+                value={organization}
+                onChange={setOrganization}
+              />
+              <LikertScale
+                label="Technical Soundness"
+                value={technicalSoundness}
+                onChange={setTechnicalSoundness}
+              />
+              <LikertScale
+                label="Usability"
+                value={usability}
+                onChange={setUsability}
               />
             </div>
+          </div>
 
-            {/* Suggestions for Improvement Textarea - Optional field */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Suggestions for Improvement
-              </label>
-              <textarea
-                rows={4}
-                placeholder="What could be improved..."
-                value={suggestions}
-                onChange={(e) => setSuggestions(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-              />
-            </div>
+          {/* SECTION 3: Written Feedback Questions - 2 Column Grid */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900">Written Feedback</h4>
 
-            {/* Quick Feedback Buttons - Optional quick assessment */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Quick Feedback
-              </label>
-              <div className="flex gap-2">
-                <button 
-                  type="button"
-                  onClick={() => setQuickFeedback(quickFeedback === 'strong' ? null : 'strong')}
-                  className={`flex-1 px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm flex items-center justify-center gap-1 ${
-                    quickFeedback === 'strong' 
-                      ? 'border-green-500 bg-green-50' 
-                      : 'border-gray-300'
-                  }`}
-                >
-                  <ThumbsUp className="w-4 h-4" />
-                  Strong
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setQuickFeedback(quickFeedback === 'needs-work' ? null : 'needs-work')}
-                  className={`flex-1 px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm flex items-center justify-center gap-1 ${
-                    quickFeedback === 'needs-work' 
-                      ? 'border-orange-500 bg-orange-50' 
-                      : 'border-gray-300'
-                  }`}
-                >
-                  <ThumbsDown className="w-4 h-4" />
-                  Needs Work
-                </button>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="strengths" className="text-sm font-medium text-gray-700 mb-1.5 block">
+                  What are the strengths of this work?
+                </Label>
+                <Textarea
+                  id="strengths"
+                  rows={3}
+                  value={strengths}
+                  onChange={(e) => setStrengths(e.target.value)}
+                  placeholder="Describe what was done well..."
+                  className="w-full text-sm"
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1">{strengths.length}/500</p>
+              </div>
+
+              <div>
+                <Label htmlFor="improvements" className="text-sm font-medium text-gray-700 mb-1.5 block">
+                  What could be improved?
+                </Label>
+                <Textarea
+                  id="improvements"
+                  rows={3}
+                  value={improvements}
+                  onChange={(e) => setImprovements(e.target.value)}
+                  placeholder="Provide constructive suggestions..."
+                  className="w-full text-sm"
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1">{improvements.length}/500</p>
+              </div>
+
+              <div>
+                <Label htmlFor="oneChange" className="text-sm font-medium text-gray-700 mb-1.5 block">
+                  If you could change one thing, what would it be?
+                </Label>
+                <Textarea
+                  id="oneChange"
+                  rows={3}
+                  value={oneChange}
+                  onChange={(e) => setOneChange(e.target.value)}
+                  placeholder="Identify the most impactful change..."
+                  className="w-full text-sm"
+                  maxLength={300}
+                />
+                <p className="text-xs text-gray-500 mt-1">{oneChange.length}/300</p>
+              </div>
+
+              <div>
+                <Label htmlFor="otherObservations" className="text-sm font-medium text-gray-700 mb-1.5 block">
+                  Other observations
+                </Label>
+                <Textarea
+                  id="otherObservations"
+                  rows={3}
+                  value={otherObservations}
+                  onChange={(e) => setOtherObservations(e.target.value)}
+                  placeholder="Additional comments or notes..."
+                  className="w-full text-sm"
+                  maxLength={300}
+                />
+                <p className="text-xs text-gray-500 mt-1">{otherObservations.length}/300</p>
               </div>
             </div>
+          </div>
 
-            {/* Action Buttons - Submit or Save Draft */}
-            <div className="space-y-2">
-              <button 
-                onClick={handleSubmitReview}
-                className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-              >
-                Submit Review
-              </button>
-              <button 
-                type="button"
-                onClick={handleSaveDraft}
-                className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Save Draft
-              </button>
-            </div>
+          {/* Action Buttons */}
+          <div className="space-y-2 pt-4 border-t border-gray-200">
+            <button 
+              onClick={handleSubmit}
+              disabled={!isFormValid()}
+              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              Submit Review
+            </button>
+            <p className="text-xs text-gray-500 text-center">
+              Provide at least one form of feedback to submit.
+            </p>
+            <button className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+              Save Draft
+            </button>
           </div>
         </div>
       </div>
