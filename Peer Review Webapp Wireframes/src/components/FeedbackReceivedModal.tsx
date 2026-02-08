@@ -12,6 +12,8 @@ interface FeedbackReceivedModalProps {
     submittedWorkUrl: string;
     submittedDate: string;
     feedback: {
+      reviewerName: string;
+      reviewedDate: string;
       rating: number;
       strengths: string;
       improvements: string;
@@ -91,7 +93,7 @@ export function FeedbackReceivedModal({ isOpen, onClose, submission }: FeedbackR
                   <p className="font-medium text-gray-900">{submission.week}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Project team</p>
+                  <p className="text-sm text-gray-600 mb-1">Submitted by (project team)</p>
                   <p className="font-medium text-gray-900">{submission.projectTeam}</p>
                 </div>
               </div>
@@ -114,6 +116,17 @@ export function FeedbackReceivedModal({ isOpen, onClose, submission }: FeedbackR
           {/* Feedback Content */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Feedback Received</h3>
+
+            {(submission.feedback.reviewerName || submission.feedback.reviewedDate) && (
+              <div className="mb-4 pb-4 border-b border-gray-200 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                {submission.feedback.reviewerName && (
+                  <span className="font-medium text-gray-900">From: {submission.feedback.reviewerName}</span>
+                )}
+                {submission.feedback.reviewedDate && (
+                  <span>Reviewed on: {submission.feedback.reviewedDate}</span>
+                )}
+              </div>
+            )}
 
             <div className="space-y-5">
               {/* Overall Rating */}

@@ -46,10 +46,10 @@ export function ProfessorView() {
     { id: '6', projectTitle: 'Learning Management System', teamName: 'Team Six', courseSemester: 'MET CS601 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.0 },
   ];
 
-  // Mock data for reviews
+  // Mock data for reviews (reviewers identified by name)
   const mockReviews: Review[] = [
     {
-      reviewerName: 'Student A',
+      reviewerName: 'Alex Smith',
       overallRating: 4,
       clarity: 4,
       organization: 5,
@@ -61,7 +61,7 @@ export function ProfessorView() {
       otherObservations: 'Overall solid work with room for refinement.'
     },
     {
-      reviewerName: 'Student B',
+      reviewerName: 'Jordan Lee',
       overallRating: 5,
       clarity: 5,
       organization: 4,
@@ -73,7 +73,7 @@ export function ProfessorView() {
       otherObservations: 'Very well executed project.'
     },
     {
-      reviewerName: 'Student C',
+      reviewerName: 'Sam Taylor',
       overallRating: 4,
       clarity: 3,
       organization: 4,
@@ -253,7 +253,7 @@ export function ProfessorView() {
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Filter by team name..."
+                    placeholder="Filter by submitter (team)..."
                     value={filterTeam}
                     onChange={(e) => setFilterTeam(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -295,10 +295,10 @@ export function ProfessorView() {
               </div>
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto">
+            {/* Table - scrollable submissions list */}
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
                     <th 
                       onClick={() => handleSort('projectTitle')}
@@ -314,7 +314,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Team Name
+                        Submitted by (Team)
                         <SortIcon field="teamName" />
                       </div>
                     </th>
@@ -497,7 +497,7 @@ export function ProfessorView() {
                   {selectedSubmission.projectTitle}
                 </h3>
                 <p className="text-sm text-gray-600">
-                  {selectedSubmission.teamName} • {selectedSubmission.courseSemester}
+                  Submitted by: {selectedSubmission.teamName} • {selectedSubmission.courseSemester}
                 </p>
               </div>
               <button
@@ -532,13 +532,17 @@ export function ProfessorView() {
                 </div>
               </div>
 
-              {/* Reviews List */}
-              <div className="space-y-6">
-                <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
-                
-                {mockReviews.map((review, idx) => (
-                  <FeedbackDisplay key={idx} review={review} />
-                ))}
+              {/* Reviews List - scrollable like Feedback Received box */}
+              <div>
+                <h4 className="font-semibold text-gray-900 text-lg mb-1">Peer Reviews</h4>
+                <p className="text-sm text-gray-600 mb-4">Feedback is attributed; reviewer names are shown below.</p>
+                <div className="border border-gray-200 rounded-lg max-h-[600px] overflow-y-auto divide-y divide-gray-200">
+                  {mockReviews.map((review, idx) => (
+                    <div key={idx} className="p-4 first:rounded-t-lg last:rounded-b-lg">
+                      <FeedbackDisplay review={review} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

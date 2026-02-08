@@ -392,7 +392,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
               <div>
                 <h4 className="font-medium text-blue-900 mb-0.5 text-sm">Important</h4>
                 <p className="text-xs text-blue-800">
-                  Once submitted, your work will be anonymously assigned to peers for review. 
+                  Once submitted, your work will be assigned to peers for review.
                   You will receive feedback within the specified deadline.
                 </p>
               </div>

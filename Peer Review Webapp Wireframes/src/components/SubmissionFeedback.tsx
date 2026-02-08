@@ -8,7 +8,7 @@ interface SubmissionFeedbackProps {
 export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedbackProps) {
   const feedbackData = [
     {
-      reviewerName: 'Reviewer #1',
+      reviewerName: 'Alex Smith',
       date: 'Jan 21, 2026',
       rating: 4,
       strengths: [
@@ -24,7 +24,7 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
       detailedComments: 'Overall, this is a solid piece of work. The research is thorough and the writing is clear. The main argument is well-supported by evidence. However, I would suggest expanding the methodology section to provide more detail about your research approach. Additionally, some of the citations could be formatted more consistently according to APA style.'
     },
     {
-      reviewerName: 'Reviewer #2',
+      reviewerName: 'Jordan Lee',
       date: 'Jan 22, 2026',
       rating: 5,
       strengths: [
@@ -40,7 +40,7 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
       detailedComments: 'This is an exceptional submission. The depth of research is impressive and the innovative approach to analyzing AI ethics brings fresh perspectives to the field. The critical analysis demonstrates strong analytical thinking. I noticed a few minor grammatical issues in section 3 that could be corrected. Consider adding charts or diagrams to illustrate some of the more complex concepts.'
     },
     {
-      reviewerName: 'Reviewer #3',
+      reviewerName: 'Sam Taylor',
       date: 'Jan 23, 2026',
       rating: 4,
       strengths: [
@@ -73,7 +73,11 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-3xl font-semibold text-gray-900 mb-2">{submissionTitle}</h2>
-            <div className="flex items-center gap-4 text-gray-600">
+            <div className="flex items-center gap-4 text-gray-600 flex-wrap">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                <span className="text-sm">Submitted by: Sarah Chen, Michael Rodriguez</span>
+              </div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
                 <span className="text-sm">Submitted: Jan 20, 2026</span>
@@ -149,12 +153,12 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
         </button>
       </div>
 
-      {/* Peer Reviews */}
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Peer Reviews ({feedbackData.length})</h3>
-        
+      {/* Peer Reviews - scrollable like Feedback Received box */}
+      <div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">Peer Reviews ({feedbackData.length})</h3>
+        <div className="border border-gray-200 rounded-lg max-h-[600px] overflow-y-auto divide-y divide-gray-200">
         {feedbackData.map((feedback, idx) => (
-          <div key={idx} className="bg-white rounded-lg border border-gray-200 p-6">
+          <div key={idx} className="bg-white p-6 first:rounded-t-lg last:rounded-b-lg">
             {/* Review Header */}
             <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200">
               <div className="flex items-center gap-3">
@@ -222,6 +226,7 @@ export function SubmissionFeedback({ onBack, submissionTitle }: SubmissionFeedba
             </div>
           </div>
         ))}
+        </div>
       </div>
 
       {/* Action Buttons */}

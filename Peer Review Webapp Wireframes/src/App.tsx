@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
 import { SubmissionFlow } from './components/SubmissionFlow';
@@ -8,34 +9,58 @@ import { SubmissionFeedback } from './components/SubmissionFeedback';
 import { LogOut } from 'lucide-react';
 
 type UserRole = 'student' | 'professor';
-type View = 'dashboard' | 'submission' | 'review' | 'professor' | 'feedback';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('student');
-  const [currentView, setCurrentView] = useState<View>('dashboard');
   const [selectedSubmission, setSelectedSubmission] = useState<string>('');
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogin = (role: UserRole) => {
     setCurrentRole(role);
     setIsLoggedIn(true);
-    setCurrentView(role === 'professor' ? 'professor' : 'dashboard');
+    navigate(role === 'professor' ? '/professor' : '/students');
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setCurrentView('dashboard');
+    navigate('/login');
   };
 
   const handleNavigateToFeedback = (submissionTitle: string) => {
     setSelectedSubmission(submissionTitle);
-    setCurrentView('feedback');
+    navigate('/students/feedback', { state: { submissionTitle } });
   };
 
-  // Show login page if not logged in
+  // Not logged in: only allow /login, otherwise redirect to login
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+    if (location.pathname === '/login') {
+      return <LoginPage onLogin={handleLogin} />;
+    }
+    return <Navigate to="/login" replace />;
   }
+
+  // Logged in on /login: redirect to role-specific home
+  if (location.pathname === '/login') {
+    return <Navigate to={currentRole === 'professor' ? '/professor' : '/students'} replace />;
+  }
+
+  // Student routes: require student role
+  if (location.pathname.startsWith('/students')) {
+    if (currentRole !== 'student') {
+      return <Navigate to="/professor" replace />;
+    }
+  }
+
+  // Professor route: require professor role
+  if (location.pathname.startsWith('/professor')) {
+    if (currentRole !== 'professor') {
+      return <Navigate to="/students" replace />;
+    }
+  }
+
+  const submissionTitleFromState = (location.state as { submissionTitle?: string } | null)?.submissionTitle ?? selectedSubmission;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -44,32 +69,22 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Peer Review Platform</h1>
           <div className="flex gap-2 items-center">
-            <button
-              onClick={() => {
-                setCurrentRole('student');
-                setCurrentView('dashboard');
-              }}
-              className={`px-4 py-2 rounded-lg ${
-                currentRole === 'student'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Student View
-            </button>
-            <button
-              onClick={() => {
-                setCurrentRole('professor');
-                setCurrentView('professor');
-              }}
-              className={`px-4 py-2 rounded-lg ${
-                currentRole === 'professor'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Professor View
-            </button>
+            {currentRole === 'student' && (
+              <button
+                onClick={() => navigate('/students')}
+                className={`px-4 py-2 rounded-lg ${location.pathname === '/students' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                Student View
+              </button>
+            )}
+            {currentRole === 'professor' && (
+              <button
+                onClick={() => navigate('/professor')}
+                className={`px-4 py-2 rounded-lg ${location.pathname.startsWith('/professor') ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                Professor View
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
@@ -81,33 +96,32 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content */}
-      {currentRole === 'student' && currentView === 'dashboard' && (
-        <Dashboard
-          onNavigateToSubmission={() => setCurrentView('submission')}
-          onNavigateToReview={() => setCurrentView('review')}
-          onNavigateToFeedback={handleNavigateToFeedback}
+      <Routes>
+        <Route
+          path="/students"
+          element={
+            <Dashboard
+              onNavigateToSubmission={() => navigate('/students/submit')}
+              onNavigateToReview={() => navigate('/students/review')}
+              onNavigateToFeedback={handleNavigateToFeedback}
+            />
+          }
         />
-      )}
-
-      {currentRole === 'student' && currentView === 'submission' && (
-        <SubmissionFlow onBack={() => setCurrentView('dashboard')} />
-      )}
-
-      {currentRole === 'student' && currentView === 'review' && (
-        <ReviewFlow onBack={() => setCurrentView('dashboard')} />
-      )}
-
-      {currentRole === 'student' && currentView === 'feedback' && (
-        <SubmissionFeedback 
-          onBack={() => setCurrentView('dashboard')}
-          submissionTitle={selectedSubmission}
+        <Route path="/students/submit" element={<SubmissionFlow onBack={() => navigate('/students')} />} />
+        <Route path="/students/review" element={<ReviewFlow onBack={() => navigate('/students')} />} />
+        <Route
+          path="/students/feedback"
+          element={
+            <SubmissionFeedback
+              onBack={() => navigate('/students')}
+              submissionTitle={submissionTitleFromState || 'Submission'}
+            />
+          }
         />
-      )}
-
-      {currentRole === 'professor' && (
-        <ProfessorView />
-      )}
+        <Route path="/professor" element={<ProfessorView />} />
+        <Route path="/" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/students'} replace />} />
+        <Route path="*" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/students'} replace />} />
+      </Routes>
     </div>
   );
 }

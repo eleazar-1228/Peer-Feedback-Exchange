@@ -203,6 +203,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
       submittedDate: 'Jan 20, 2026',
       status: 'Feedback Received',
       feedback: {
+        reviewerName: 'Alex Smith',
+        reviewedDate: 'Jan 21, 2026',
         rating: 4,
         strengths: 'Clear and well-structured argument. Good use of supporting evidence. Strong introduction and conclusion.',
         improvements: 'Could expand on the methodology section. Some citations need proper formatting. Consider adding more recent sources.',
@@ -224,6 +226,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
       submittedDate: 'Jan 15, 2026',
       status: 'Feedback Received',
       feedback: {
+        reviewerName: 'Jordan Lee',
+        reviewedDate: 'Jan 18, 2026',
         rating: 5,
         strengths: 'Excellent code organization and component structure. Well-implemented responsive design.',
         improvements: 'Could add more comprehensive error handling. Consider adding unit tests.',
@@ -245,6 +249,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
       submittedDate: 'Jan 22, 2026',
       status: 'Pending Review',
       feedback: {
+        reviewerName: '',
+        reviewedDate: '',
         rating: 0,
         strengths: '',
         improvements: '',
@@ -600,9 +606,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             </div>
           </div>
 
-          {/* Submissions List */}
-          <div className="bg-white rounded-lg border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
+          {/* Submissions List - scrollable container */}
+          <div className="bg-white rounded-lg border border-gray-200 max-h-[600px] overflow-y-auto flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Submissions</h3>
               
               {/* Filters */}
@@ -654,9 +660,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-0">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
                     <th 
                       onClick={() => handleAllSort('projectTitle')}
@@ -816,10 +822,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               <h3 className="text-lg font-semibold text-gray-900">My Submissions</h3>
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto">
+            {/* Table - scrollable submissions list */}
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
                     <th 
                       onClick={() => handleSort('projectTitle')}
@@ -1099,7 +1105,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               {/* Reviews List */}
               <div className="space-y-6">
                 <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
-                
                 {selectedSubmissionForDetails.reviews.map((review, idx) => (
                   <FeedbackDisplay key={idx} review={review} />
                 ))}
@@ -1168,7 +1173,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               {/* Reviews List */}
               <div className="space-y-6">
                 <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
-                
                 {selectedAllSubmission.reviews.map((review, idx) => (
                   <FeedbackDisplay key={idx} review={review} />
                 ))}

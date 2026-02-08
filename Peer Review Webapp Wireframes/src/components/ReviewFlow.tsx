@@ -20,38 +20,41 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
   const [otherObservations, setOtherObservations] = useState('');
 
   const assignedReviews = [
-    { 
-      id: 1, 
-      title: 'BU Peer Review Platform', 
-      type: 'Academic Paper', 
+    {
+      id: 1,
+      title: 'BU Peer Review Platform',
+      type: 'Academic Paper',
       due: 'Jan 26, 2026',
       submitted: 'Jan 20, 2026',
       course: 'MET CS633 – Spring 1, 2026',
       week: 'Week 3',
       submittedWorkUrl: 'https://drive.google.com/document/d/example123',
-      status: 'Pending' 
+      status: 'Pending',
+      submittedBy: 'Team Four',
     },
-    { 
-      id: 2, 
-      title: 'Mobile Banking App', 
-      type: 'Code Review', 
+    {
+      id: 2,
+      title: 'Mobile Banking App',
+      type: 'Code Review',
       due: 'Jan 25, 2026',
       submitted: 'Jan 18, 2026',
       course: 'MET CS601 – Spring 1, 2026',
       week: 'Week 4',
       submittedWorkUrl: 'https://drive.google.com/document/d/example456',
-      status: 'Pending' 
+      status: 'Pending',
+      submittedBy: 'Team Two',
     },
-    { 
-      id: 3, 
-      title: 'E-commerce Dashboard', 
-      type: 'Design Work', 
+    {
+      id: 3,
+      title: 'E-commerce Dashboard',
+      type: 'Design Work',
       due: 'Jan 28, 2026',
       submitted: 'Jan 15, 2026',
       course: 'MET CS633 – Spring 1, 2026',
       week: 'Week 2',
       submittedWorkUrl: 'https://drive.google.com/document/d/example789',
-      status: 'Completed' 
+      status: 'Completed',
+      submittedBy: 'Team Five',
     },
   ];
 
@@ -130,7 +133,8 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{review.title}</h3>
-                  <div className="flex gap-6 text-sm text-gray-600">
+                  <div className="flex gap-6 text-sm text-gray-600 flex-wrap">
+                    <span className="font-medium text-gray-900">Submitted by: {review.submittedBy}</span>
                     <div className="flex items-center gap-1">
                       <FileText className="w-4 h-4" />
                       <span>{review.type}</span>
@@ -184,16 +188,23 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
               <p className="font-medium text-gray-900">{selectedSubmission?.title}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 mb-1">Course/semester</p>
-              <p className="font-medium text-gray-900">{selectedSubmission?.course}</p>
+              <p className="text-sm text-gray-600 mb-1">Submitted by</p>
+              <p className="font-medium text-gray-900">{selectedSubmission?.submittedBy}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Course/semester</p>
+              <p className="font-medium text-gray-900">{selectedSubmission?.course}</p>
+            </div>
             <div>
               <p className="text-sm text-gray-600 mb-1">Week/module</p>
               <p className="font-medium text-gray-900">{selectedSubmission?.week}</p>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600 mb-1">Submitted date</p>
               <p className="font-medium text-gray-900">{selectedSubmission?.submitted}</p>

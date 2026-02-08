@@ -92,7 +92,7 @@ export function FeedbackProvidedModal({ isOpen, onClose, review }: FeedbackProvi
                   <p className="font-medium text-gray-900">{review.week}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Project team</p>
+                  <p className="text-sm text-gray-600 mb-1">Submitted by (project team)</p>
                   <p className="font-medium text-gray-900">{review.projectTeam}</p>
                 </div>
                 <div>
