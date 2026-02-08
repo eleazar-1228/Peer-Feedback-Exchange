@@ -34,41 +34,35 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   const handleSocialLogin = (provider: 'google' | 'github') => {
-    // In a real app, this would:
-    // 1. Initiate OAuth flow with the provider
-    // 2. Get the user's email from the provider
-    // 3. Check if email ends with @bu.edu
-    // 4. If yes, proceed with login; if no, show error
-    
-    // For demo purposes, we'll simulate a non-BU email being returned
+    // With Supabase Auth: after OAuth (signInWithOAuth), check session user email.
+    // If !user.email?.toLowerCase().endsWith('@bu.edu'), sign out and show error below.
+    // Only allow sign-in when the linked email is @bu.edu.
+    const providerName = provider === 'google' ? 'Google' : 'GitHub';
     setSocialLoginError(
-      `Please sign in with your Boston University (@bu.edu) ${provider === 'google' ? 'Google' : 'GitHub'} account. Other email addresses are not permitted.`
+      `Sign-in with ${providerName} is only allowed with a Boston University (@bu.edu) email. Please use an account linked to @bu.edu.`
     );
-    
-    // Clear error after 5 seconds
     setTimeout(() => setSocialLoginError(''), 5000);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateEmail(email)) {
       return;
     }
 
     if (mode === 'signup') {
-      // For signup, show verification screen
+      // For signup, show verification screen (replace with Supabase Auth signup)
       setMode('verify');
     } else if (mode === 'login') {
-      // For login, directly log in (in real app, would check credentials)
+      // Replace with Supabase Auth signIn
       onLogin(userType);
     }
   };
 
   const handleVerification = (e: React.FormEvent) => {
     e.preventDefault();
-    // In real app, would verify the code
-    // For now, just log them in
+    // Replace with Supabase Auth email verification
     onLogin(userType);
   };
 
@@ -473,12 +467,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </div>
           )}
 
-          {/* BU Email Notice */}
+          {/* BU Email requirement for Google & GitHub */}
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex gap-2">
               <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-blue-800">
-                Social login accounts must be associated with a @bu.edu email address
+                Google and GitHub sign-in require a Boston University (@bu.edu) email. Only accounts with an @bu.edu email can sign in.
               </p>
             </div>
           </div>
