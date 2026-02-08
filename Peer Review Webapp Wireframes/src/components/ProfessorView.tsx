@@ -242,9 +242,9 @@ export function ProfessorView() {
             </div>
           </div>
 
-          {/* Submissions List */}
-          <div className="bg-white rounded-lg border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
+          {/* Submissions List - scrollable container */}
+          <div className="bg-white rounded-lg border border-gray-200 max-h-[600px] overflow-y-auto flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Submissions</h3>
               
               {/* Filters */}
@@ -295,8 +295,8 @@ export function ProfessorView() {
               </div>
             </div>
 
-            {/* Table - scrollable submissions list */}
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            {/* Table */}
+            <div className="overflow-x-auto min-h-0">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                   <tr>
