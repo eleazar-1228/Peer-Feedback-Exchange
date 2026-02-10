@@ -7,6 +7,8 @@ import { ReviewFlow } from './components/ReviewFlow';
 import { ProfessorView } from './components/ProfessorView';
 import { SubmissionFeedback } from './components/SubmissionFeedback';
 import { LogOut } from 'lucide-react';
+import { supabase } from "./lib/supabaseClient";
+import { useEffect } from "react";
 
 type UserRole = 'student' | 'professor';
 
@@ -17,15 +19,32 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Persist login: check session on load and listen for auth changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setIsLoggedIn(true);
+      }
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   const handleLogin = (role: UserRole) => {
     setCurrentRole(role);
     setIsLoggedIn(true);
     navigate(role === 'professor' ? '/professor' : '/students');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsLoggedIn(false);
-    navigate('/login');
   };
 
   const handleNavigateToFeedback = (submissionTitle: string) => {

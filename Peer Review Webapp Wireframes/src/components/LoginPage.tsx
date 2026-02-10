@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
-import { startSignupOtp, loginWithPassword } from "../services/auth";
+import { startSignupOtp, loginWithPassword, setPassword as setUserPassword } from "../services/auth";
 import { supabase } from "../lib/supabaseClient";
 import { verifyEmailOtp } from '../services/auth';
 
@@ -84,7 +84,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateEmail(email)) return;
@@ -138,7 +138,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       return;
     }
 
-    const { error: pwErr } = await setPassword(password);
+    const { error: pwErr } = await setUserPassword(password);
 
     if (pwErr) {
       setSocialLoginError(pwErr.message);
