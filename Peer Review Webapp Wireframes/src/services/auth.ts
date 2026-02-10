@@ -17,7 +17,7 @@ export async function verifyEmailOtp(email: string, token: string) {
   });
 }
 
-export async function setPassword(password: string) {
+export function setPassword(password: string) {
   return supabase.auth.updateUser({ password });
 
   
@@ -27,3 +27,5 @@ export async function setPassword(password: string) {
 export function loginWithPassword(email: string, password: string) {
     return supabase.auth.signInWithPassword({ email, password });
 }
+
+

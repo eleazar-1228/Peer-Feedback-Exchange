@@ -146,13 +146,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
    */
   const handleVerification = async (e: React.SyntheticEvent) => {
     e.preventDefault();
+    
+    console.log("VERIFY CLICKED", { email, verificationCode, password });
 
     const { data, error } = await verifyEmailOtp(email, verificationCode);
+    console.log("VERIFY RESULT", { data, error });
+
 
     if (error) {
       setSocialLoginError(error.message);
       return;
     }
+
+    const { error: pwErr } = await setPassword(password);
+
+    if (pwErr) {
+      setSocialLoginError(pwErr.message);
+      return;
+    }
+
 
     const user = data.user;
     if (!user) {
