@@ -125,6 +125,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     console.log("VERIFY CLICKED", { email, verificationCode, password });
 
     const { data, error } = await verifyEmailOtp(email, verificationCode);
+
+    if (!data?.session || !data?.user) {
+      setSocialLoginError("OTP verified, but no session/user returned. Check verifyOtp type.");
+      return;
+    }
     console.log("VERIFY RESULT", { data, error });
 
 

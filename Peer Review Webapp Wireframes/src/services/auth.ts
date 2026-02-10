@@ -9,22 +9,21 @@ export async function startSignupOtp(email: string) {
   });
 }
 
-export async function verifyEmailOtp(email: string, token: string) {
+export function verifyEmailOtp(email: string, token: string) {
   return supabase.auth.verifyOtp({
     email,
     token,
-    type: "email", //change to signup if "email" fails
+    type: "signup", //change to signup if "email" fails
   });
 }
 
-export function setPassword(password: string) {
+export async function setPassword(password: string) {
   return supabase.auth.updateUser({ password });
-
   
 }
 
 // ✅ ADD THIS (fixes "no exported member")
-export function loginWithPassword(email: string, password: string) {
+export async function loginWithPassword(email: string, password: string) {
     return supabase.auth.signInWithPassword({ email, password });
 }
 
