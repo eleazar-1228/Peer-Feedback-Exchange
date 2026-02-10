@@ -1,18 +1,64 @@
 import { useState } from 'react';
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { startSignupOtp, loginWithPassword } from "../services/auth";
+import { supabase } from "../lib/supabaseClient";
+import { verifyEmailOtp } from '../services/auth';
 
+/**
+ * Props for the LoginPage component
+ */
 interface LoginPageProps {
+  /** Callback function called when user successfully logs in */
   onLogin: (role: 'student' | 'professor') => void;
 }
 
+/**
+ * LoginPage Component
+ * 
+ * Handles user authentication including:
+ * - Login and signup modes
+ * - Email verification for signup
+ * - Social login (Google/GitHub) with @bu.edu validation
+ * - Form validation and error handling
+ * 
+ * Only accepts @bu.edu email addresses for authentication
+ */
 export function LoginPage({ onLogin }: LoginPageProps) {
+  // Current mode: login, signup, or email verification
   const [mode, setMode] = useState<'login' | 'signup' | 'verify'>('login');
+  
+  // Toggle password visibility
   const [showPassword, setShowPassword] = useState(false);
-  const [userType, setUserType] = useState<'student' | 'professor'>('student');
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
+  
+  // User password component
+  const [password, setPassword] = useState("");
 
+  // User type selection (student or professor)
+  const [userType, setUserType] = useState<'student' | 'professor'>('student');
+  
+  // Email input value
+  const [email, setEmail] = useState('');
+  
+  // Email validation error message
+  const [emailError, setEmailError] = useState('');
+  
+  // Verification code input for email verification
+  const [verificationCode, setVerificationCode] = useState('');
+  
+  // Error message for social login attempts
+  const [socialLoginError, setSocialLoginError] = useState('');
+
+  // User Login Credential components
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [studentId, setStudentId] = useState("");
+
+
+  /**
+   * Validates email address to ensure it ends with @bu.edu
+   * @param emailValue - The email address to validate
+   * @returns true if valid, false otherwise
+   */
   const validateEmail = (emailValue: string) => {
     if (!emailValue.endsWith('@bu.edu')) {
       setEmailError('Only @bu.edu email addresses are allowed');
@@ -22,12 +68,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     return true;
   };
 
+  /**
+   * Handles email input changes and validates in real-time
+   * @param e - Change event from email input
+   */
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
+    // Validate email if user has entered something
     if (value) {
       validateEmail(value);
     } else {
+      // Clear error if field is empty
       setEmailError('');
     }
   };
@@ -35,32 +87,97 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateEmail(email)) {
+    if (!validateEmail(email)) return;
+
+    if (mode === "signup") {
+      const { error } = await startSignupOtp(email);
+
+      if (error) {
+        setSocialLoginError(error.message);
+        return;
+      }
+
+      setMode("verify");
       return;
     }
 
-    if (mode === 'signup') {
-      // For signup, show verification screen (replace with Supabase Auth signup)
-      setMode('verify');
-    } else if (mode === 'login') {
-      // Replace with Supabase Auth signIn
+    if (mode === "login") {
+      const { error } = await loginWithPassword(email, password);
+
+      if (error) {
+        setSocialLoginError(error.message);
+        return;
+      }
+
       onLogin(userType);
     }
   };
 
-  const handleVerification = (e: React.FormEvent) => {
+
+
+  /**
+   * Handles email verification code submission
+   * @param e - Form submit event
+   */
+  const handleVerification = async (e: React.SyntheticEvent) => {
     e.preventDefault();
-    // Replace with Supabase Auth email verification
+    
+    console.log("VERIFY CLICKED", { email, verificationCode, password });
+
+    const { data, error } = await verifyEmailOtp(email, verificationCode);
+
+    if (!data?.session || !data?.user) {
+      setSocialLoginError("OTP verified, but no session/user returned. Check verifyOtp type.");
+      return;
+    }
+    console.log("VERIFY RESULT", { data, error });
+
+
+    if (error) {
+      setSocialLoginError(error.message);
+      return;
+    }
+
+    const { error: pwErr } = await setPassword(password);
+
+    if (pwErr) {
+      setSocialLoginError(pwErr.message);
+      return;
+    }
+
+
+    const user = data.user;
+    if (!user) {
+      setSocialLoginError("Verification failed");
+      return;
+    }
+
+    console.log({ firstName, lastName, studentId, email });
+    // 🔥 INSERT PROFILE INTO DATABASE
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: user.id,
+      role: userType,
+      first_name: firstName,     // ← replace with your state names
+      last_name: lastName,       // ← replace with your state names
+      student_id: studentId,     // ← replace with your state names
+    });
+
+    if (profileError) {
+      setSocialLoginError(profileError.message);
+      return;
+    }
+
+    // success → go dashboard
     onLogin(userType);
   };
 
-  // Verification Screen
+  // Render email verification screen if in verify mode
   if (mode === 'verify') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-            {/* Icon */}
+            {/* Email Icon */}
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Mail className="w-8 h-8 text-blue-600" />
             </div>
@@ -86,7 +203,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
-            {/* Verification Code Input */}
+            {/* Verification Code Input Form */}
             <form onSubmit={handleVerification} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -102,6 +219,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 />
               </div>
 
+              {/* Submit Verification Button */}
               <button
                 type="submit"
                 className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium"
@@ -110,20 +228,24 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </button>
             </form>
 
-            {/* Resend Link */}
+            {/* Resend Verification Email Link */}
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600 mb-2">
                 Didn't receive the email?
               </p>
               <button
                 type="button"
+                onClick={() => {
+                  // In production, would trigger resend email API call
+                  alert('Verification email resent!');
+                }}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 Resend verification email
               </button>
             </div>
 
-            {/* Back to Login */}
+            {/* Back to Login Navigation */}
             <div className="mt-6 pt-6 border-t border-gray-200 text-center">
               <button
                 onClick={() => setMode('login')}
@@ -215,14 +337,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </p>
           </div>
 
-          {/* Form */}
+          {/* Main Login/Signup Form */}
           <form onSubmit={handleSubmit} className="space-y-5 max-w-md mx-auto">
-            {/* User Type Selection */}
+            {/* User Type Selection - Student or Professor */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 I am a...
               </label>
               <div className="grid grid-cols-2 gap-3">
+                {/* Student Selection Button */}
                 <button
                   type="button"
                   onClick={() => setUserType('student')}
@@ -238,6 +361,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   </p>
                 </button>
 
+                {/* Professor Selection Button */}
                 <button
                   type="button"
                   onClick={() => setUserType('professor')}
@@ -255,34 +379,41 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
-            {/* Name (Signup only) */}
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            {mode === "signup" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                   <input
                     type="text"
-                    placeholder="John Doe"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg"
                     required
                   />
                 </div>
               </div>
             )}
 
-            {/* Student/Employee ID (Signup only) */}
-            {mode === 'signup' && (
+            {/* Student/Employee ID Input - Only shown during signup */}
+            {mode === "signup" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {userType === 'student' ? 'Student ID' : 'Employee ID'}
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Student ID</label>
                 <input
                   type="text"
-                  placeholder={userType === 'student' ? 'e.g., A234' : 'e.g., EMP001'}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg"
                   required
                 />
               </div>
@@ -317,7 +448,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </p>
             </div>
 
-            {/* Password */}
+            {/* Password Input with Show/Hide Toggle */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Password
@@ -325,15 +456,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               <div className="relative">
                 <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
                 />
+                {/* Toggle Password Visibility Button */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -344,7 +477,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
-            {/* Confirm Password (Signup only) */}
+            {/* Confirm Password Input - Only shown during signup */}
             {mode === 'signup' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
