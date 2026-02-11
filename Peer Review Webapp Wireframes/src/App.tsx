@@ -57,7 +57,12 @@ export default function App() {
     if (location.pathname === '/login') {
       return <LoginPage onLogin={handleLogin} />;
     }
-    return <Navigate to="/login" replace />;
+    return (
+      <>
+        <div style={{ padding: "2rem", textAlign: "center" }}>Redirecting to login…</div>
+        <Navigate to="/login" replace />
+      </>
+    );
   }
 
   // Logged in on /login: redirect to role-specific home
