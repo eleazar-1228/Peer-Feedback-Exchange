@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileText, ClipboardCheck, CheckCircle, FileInput, ClipboardList, Calendar, BookOpen, Clock, ChevronUp, ChevronDown, X, Star, Search } from 'lucide-react';
 import { FeedbackReceivedModal } from './FeedbackReceivedModal';
 import { FeedbackProvidedModal } from './FeedbackProvidedModal';
 import { Badge } from './ui/badge';
 import { FeedbackDisplay } from './FeedbackDisplay';
+import { getMyProfile } from '../lib/profileService';
 
 interface DashboardProps {
   onNavigateToSubmission: () => void;
@@ -67,6 +68,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedSubmissionForDetails, setSelectedSubmissionForDetails] = useState<StudentSubmission | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
   
   // All Feedback tab state
   const [allSortField, setAllSortField] = useState<AllSubmissionsSortField | null>(null);
@@ -75,6 +79,22 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedAllSubmission, setSelectedAllSubmission] = useState<AllSubmission | null>(null);
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const p = await getMyProfile();
+        setProfile(p);
+      } catch (err) {
+        console.error("Profile load failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  
+    loadProfile();
+  }, []);
+  
 
   // Mock data for student's submissions with reviews
   const mySubmissionsData: StudentSubmission[] = [
@@ -532,12 +552,45 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     setSelectedSubmissionForDetails(null);
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto p-8">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          Loading your profile...
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="max-w-7xl mx-auto p-8">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          No profile found. Please log in again.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-8">
       {/* Header */}
       <div className="mb-8">
-        <h2 className="text-3xl font-semibold text-gray-900 mb-2">Student Dashboard</h2>
-        <p className="text-gray-600">Manage your submissions and reviews</p>
+        <h2 className="text-3xl font-semibold text-gray-900 mb-2">
+          Welcome{profile?.first_name ? `, ${profile.first_name}` : ""} 👋
+        </h2>
+
+        <p className="text-gray-600">
+          {profile?.course
+            ? `Course: ${profile.course}`
+            : "Manage your submissions and reviews"}
+        </p>
+
+        {profile?.student_id && (
+          <p className="text-sm text-gray-500 mt-1">
+            Student ID: {profile.student_id}
+          </p>
+        )}
       </div>
 
       {/* Tabs */}
