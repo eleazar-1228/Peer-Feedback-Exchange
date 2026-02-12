@@ -8,38 +8,89 @@ import { ProfessorView } from './components/ProfessorView';
 import { SubmissionFeedback } from './components/SubmissionFeedback';
 import { LogOut } from 'lucide-react';
 import { supabase } from "./lib/supabaseClient";
-import { useEffect } from "react";
+import { useEffect,useMemo} from "react";
 
 type UserRole = 'student' | 'professor';
 
 export default function App() {
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentRole, setCurrentRole] = useState<UserRole>('student');
+  const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<string>('');
   const navigate = useNavigate();
   const location = useLocation();
 
   // Persist login: check session on load and listen for auth changes
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        setIsLoggedIn(true);
-      }
-    });
+    let unsub: { subscription: { unsubscribe: () => void } } | null = null;
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-    });
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      const hasSession = !!data.session;
+
+      setIsLoggedIn(hasSession);
+      setSessionChecked(true);
+
+      if (hasSession) {
+        await loadRoleFromProfile();
+      }
+
+      const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const loggedIn = !!session;
+        setIsLoggedIn(loggedIn);
+
+        if (loggedIn) {
+          await loadRoleFromProfile();
+        } else {
+          setCurrentRole(null);
+        }
+      });
+
+      unsub = sub;
+    }
+
+    init();
 
     return () => {
-      sub.subscription.unsubscribe();
+      unsub?.subscription.unsubscribe();
     };
   }, []);
 
-  const handleLogin = (role: UserRole) => {
-    setCurrentRole(role);
+
+  async function loadRoleFromProfile() {
+    setRoleLoading(true);
+    try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !user) {
+        setCurrentRole(null);
+        return;
+      }
+
+      const { data: profile, error: profErr } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profErr || !profile?.role) {
+        setCurrentRole("student"); // safe fallback
+        return;
+      }
+
+      setCurrentRole(profile.role as UserRole);
+    } finally {
+      setRoleLoading(false);
+    }
+  }
+
+
+  const handleLogin = async (_roleFromUI: UserRole) => {
+    // role is now sourced from profiles, not the UI
     setIsLoggedIn(true);
-    navigate(role === 'professor' ? '/professor' : '/students');
+    await loadRoleFromProfile();
+
+    navigate(currentRole === "professor" ? "/professor" : "/students");
   };
 
   const handleLogout = async () => {
@@ -52,23 +103,33 @@ export default function App() {
     navigate('/students/feedback', { state: { submissionTitle } });
   };
 
-  // Not logged in: only allow /login, otherwise redirect to login
-  if (!isLoggedIn) {
-    if (location.pathname === '/login') {
-      return <LoginPage onLogin={handleLogin} />;
-    }
-    return (
-      <>
-        <div style={{ padding: "2rem", textAlign: "center" }}>Redirecting to login…</div>
-        <Navigate to="/login" replace />
-      </>
-    );
+  const isAuthRoute = location.pathname === "/login";
+
+  // Wait until we've checked session once
+  if (!sessionChecked) {
+    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading…</div>;
   }
 
-  // Logged in on /login: redirect to role-specific home
-  if (location.pathname === '/login') {
-    return <Navigate to={currentRole === 'professor' ? '/professor' : '/students'} replace />;
+  // Not logged in: always go to login except /login itself
+  if (!isLoggedIn && !isAuthRoute) {
+    return <Navigate to="/login" replace />;
   }
+
+  if (!isLoggedIn && isAuthRoute) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  // Logged in but role not loaded yet
+  if (isLoggedIn && (roleLoading || !currentRole) && !isAuthRoute) {
+    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading your profile…</div>;
+  }
+
+  // Logged in and on /login → redirect away
+  if (isLoggedIn && isAuthRoute) {
+    return <Navigate to={currentRole === "professor" ? "/professor" : "/students"} replace />;
+  }
+
+    
 
   // Student routes: require student role
   if (location.pathname.startsWith('/students')) {
@@ -82,6 +143,20 @@ export default function App() {
     if (currentRole !== 'professor') {
       return <Navigate to="/students" replace />;
     }
+  }
+
+  function RequireRole({
+    allowed,
+    children,
+  }: {
+    allowed: UserRole[];
+    children: React.ReactNode;
+  }) {
+    if (!currentRole) return null;
+    if (!allowed.includes(currentRole)) {
+      return <Navigate to={currentRole === "professor" ? "/professor" : "/students"} replace />;
+    }
+    return <>{children}</>;
   }
 
   const submissionTitleFromState = (location.state as { submissionTitle?: string } | null)?.submissionTitle ?? selectedSubmission;
@@ -121,31 +196,64 @@ export default function App() {
       </div>
 
       <Routes>
+        <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+
         <Route
           path="/students"
           element={
-            <Dashboard
-              onNavigateToSubmission={() => navigate('/students/submit')}
-              onNavigateToReview={() => navigate('/students/review')}
-              onNavigateToFeedback={handleNavigateToFeedback}
-            />
+            <RequireRole allowed={["student"]}>
+              <Dashboard
+                onNavigateToSubmission={() => navigate("/students/submit")}
+                onNavigateToReview={() => navigate("/students/review")}
+                onNavigateToFeedback={handleNavigateToFeedback}
+              />
+            </RequireRole>
           }
         />
-        <Route path="/students/submit" element={<SubmissionFlow onBack={() => navigate('/students')} />} />
-        <Route path="/students/review" element={<ReviewFlow onBack={() => navigate('/students')} />} />
+
+        <Route
+          path="/students/submit"
+          element={
+            <RequireRole allowed={["student"]}>
+              <SubmissionFlow onBack={() => navigate("/students")} />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/students/review"
+          element={
+            <RequireRole allowed={["student"]}>
+              <ReviewFlow onBack={() => navigate("/students")} />
+            </RequireRole>
+          }
+        />
+
         <Route
           path="/students/feedback"
           element={
-            <SubmissionFeedback
-              onBack={() => navigate('/students')}
-              submissionTitle={submissionTitleFromState || 'Submission'}
-            />
+            <RequireRole allowed={["student"]}>
+              <SubmissionFeedback
+                onBack={() => navigate("/students")}
+                submissionTitle={submissionTitleFromState || "Submission"}
+              />
+            </RequireRole>
           }
         />
-        <Route path="/professor" element={<ProfessorView />} />
-        <Route path="/" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/students'} replace />} />
-        <Route path="*" element={<Navigate to={currentRole === 'professor' ? '/professor' : '/students'} replace />} />
+
+        <Route
+          path="/professor"
+          element={
+            <RequireRole allowed={["professor"]}>
+              <ProfessorView />
+            </RequireRole>
+          }
+        />
+
+        <Route path="/" element={<Navigate to={currentRole === "professor" ? "/professor" : "/students"} replace />} />
+        <Route path="*" element={<Navigate to={currentRole === "professor" ? "/professor" : "/students"} replace />} />
       </Routes>
+
     </div>
   );
 }

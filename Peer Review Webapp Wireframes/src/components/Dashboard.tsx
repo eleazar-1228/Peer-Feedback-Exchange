@@ -5,6 +5,13 @@ import { FeedbackProvidedModal } from './FeedbackProvidedModal';
 import { Badge } from './ui/badge';
 import { FeedbackDisplay } from './FeedbackDisplay';
 import { getMyProfile } from '../lib/profileService';
+import { 
+  getMySubmissions, 
+  getAllSubmissionsFiltered,
+  getDistinctCourses
+} from "../lib/submissionService";
+
+
 
 interface DashboardProps {
   onNavigateToSubmission: () => void;
@@ -70,6 +77,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [selectedSubmissionForDetails, setSelectedSubmissionForDetails] = useState<StudentSubmission | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [dbCourses, setDbCourses] = useState<string[]>([]);
+
 
   
   // All Feedback tab state
@@ -79,6 +88,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedAllSubmission, setSelectedAllSubmission] = useState<AllSubmission | null>(null);
+  const [myDbSubmissions, setMyDbSubmissions] = useState<StudentSubmission[]>([]);
+  const [allDbSubmissions, setAllDbSubmissions] = useState<AllSubmission[]>([]);
+  const [subsLoading, setSubsLoading] = useState(true);
+
 
   useEffect(() => {
     async function loadProfile() {
@@ -94,6 +107,74 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    async function loadSubmissions() {
+      setSubsLoading(true);
+      try {
+        const [mine, all] = await Promise.all([
+          getMySubmissions(),
+          getAllSubmissionsFiltered({
+            course: filterCourse || undefined,
+            teamName: filterTeam || undefined,
+            status: (filterStatus as "Pending" | "Reviewed") || undefined,
+            limit: 200,
+            offset: 0,
+          }),
+        ]);
+
+        setMyDbSubmissions(
+          mine.map((s) => ({
+            id: Number.NaN, // later switch your UI id types to string
+            projectTitle: s.project_title,
+            course: s.course,
+            week: s.week,
+            projectTeam: s.project_team,
+            submittedDate: new Date(s.created_at).toLocaleDateString(),
+            status: s.status === "pending" ? "Pending" : "Reviewed",
+            numReviews: 0,
+            overallScore: null,
+            reviews: [],
+          }))
+        );
+
+        setAllDbSubmissions(
+          all.map((s) => ({
+            id: s.id,
+            projectTitle: s.project_title,
+            teamName: s.project_team,
+            courseSemester: s.course,
+            status: s.status === "pending" ? "Pending" : "Reviewed",
+            numReviews: 0,
+            overallScore: null,
+            reviews: [],
+          }))
+        );
+      } catch (e) {
+        console.error("Failed to load submissions:", e);
+      } finally {
+        setSubsLoading(false);
+      }
+    }
+
+    loadSubmissions();
+  }, [filterCourse, filterTeam, filterStatus]);
+
+
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        const courses = await getDistinctCourses();
+        setDbCourses(courses);
+      } catch (e) {
+        console.error("Failed to load course list:", e);
+      }
+    }
+    loadCourses();
+  }, []);
+
+
+
   
 
   // Mock data for student's submissions with reviews
@@ -355,7 +436,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   ];
 
   // Calculate stats
-  const totalSubmissions = mySubmissionsData.length;
+  const totalSubmissions = myDbSubmissions.length;
   const reviewsPending = mySubmissionsData.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
   const completedReviews = mySubmissionsData.reduce((acc, sub) => acc + sub.numReviews, 0);
 
@@ -436,13 +517,14 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   ];
 
   // Get unique courses for filter
-  const uniqueCourses = Array.from(new Set(allSubmissionsData.map(s => s.courseSemester)));
-  const uniqueTeams = Array.from(new Set(allSubmissionsData.map(s => s.teamName)));
+  const uniqueCourses = Array.from(new Set(allDbSubmissions.map(s => s.courseSemester))).sort();
+  const uniqueTeams = Array.from(new Set(allDbSubmissions.map(s => s.teamName))).sort();
+
 
   // Filter and sort all submissions
-  const filteredAllSubmissions = allSubmissionsData.filter(sub => {
-    const matchesCourse = !filterCourse || sub.courseSemester.toLowerCase().includes(filterCourse.toLowerCase());
-    const matchesStatus = !filterStatus || sub.status.toLowerCase().includes(filterStatus.toLowerCase());
+    const filteredAllSubmissions = allDbSubmissions.filter(sub => {
+    const matchesCourse = !filterCourse || sub.courseSemester === filterCourse;
+    const matchesStatus = !filterStatus || sub.status === filterStatus;
     const matchesTeam = !filterTeam || sub.teamName.toLowerCase().includes(filterTeam.toLowerCase());
     return matchesCourse && matchesStatus && matchesTeam;
   });
@@ -474,9 +556,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   });
 
   // Calculate stats for all submissions
-  const totalAllSubmissions = allSubmissionsData.length;
-  const allReviewsPending = allSubmissionsData.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
-  const allCompletedReviews = allSubmissionsData.reduce((acc, sub) => acc + sub.numReviews, 0);
+  const totalAllSubmissions = allDbSubmissions.length;
+  const allReviewsPending = allDbSubmissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
+  const allCompletedReviews = allDbSubmissions.reduce((acc, sub) => acc + sub.numReviews, 0);
+
 
   const handleAllSort = (field: AllSubmissionsSortField) => {
     if (allSortField === field) {
@@ -518,7 +601,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
       : <ChevronDown className="w-4 h-4 text-blue-600" />;
   };
 
-  const sortedSubmissions = [...mySubmissionsData].sort((a, b) => {
+  const sortedSubmissions = [...myDbSubmissions].sort((a, b) => {
     if (!sortField) return 0;
     
     let aVal = a[sortField];
@@ -570,6 +653,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         </div>
       </div>
     );
+  }
+
+  if (subsLoading || loading) {
+  return <div className="max-w-7xl mx-auto p-8">Loading dashboard…</div>;
   }
 
   return (
@@ -683,7 +770,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                   className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">All courses</option>
-                  {uniqueCourses.map(course => (
+                  {dbCourses.map(course => (
                     <option key={course} value={course}>{course}</option>
                   ))}
                 </select>

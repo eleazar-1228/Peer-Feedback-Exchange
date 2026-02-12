@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, AlertCircle, Link as LinkIcon } from 'lucide-react';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,10 +9,14 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Button } from './ui/button';
 import { format } from 'date-fns';
+import { createSubmission } from "../lib/submissionService";
+import type { FeedbackCategory } from "../lib/submissionService";
 
 interface SubmissionFlowProps {
   onBack: () => void;
 }
+
+
 
 export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -39,6 +43,62 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
     feedbackCategories: false,
     dueDate: false,
   });
+
+  const DRAFT_KEY = "submission_draft_v1";
+
+  useEffect(() => {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+
+    try {
+      const draft = JSON.parse(raw);
+
+      setCurrentStep(draft.currentStep ?? 1);
+      setCourse(draft.course ?? "");
+      setWeek(draft.week ?? "");
+      setProjectTitle(draft.projectTitle ?? "");
+      setDescription(draft.description ?? "");
+      setProjectDocument(draft.projectDocument ?? "");
+      setProjectTeam(draft.projectTeam ?? "");
+      setFeedbackCategories(draft.feedbackCategories ?? {
+        general: false,
+        technical: false,
+        presentation: false,
+        contentStructure: false,
+      });
+      setDueDate(draft.dueDate ? new Date(draft.dueDate) : undefined);
+    } catch {
+      // ignore bad draft
+    }
+  }, []);
+
+  useEffect(() => {
+    const draft = {
+      currentStep,
+      course,
+      week,
+      projectTitle,
+      description,
+      projectDocument,
+      projectTeam,
+      feedbackCategories,
+      dueDate: dueDate ? dueDate.toISOString() : null,
+    };
+
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [
+    currentStep,
+    course,
+    week,
+    projectTitle,
+    description,
+    projectDocument,
+    projectTeam,
+    feedbackCategories,
+    dueDate,
+  ]);
+
+
 
   const handleCategoryChange = (category: keyof typeof feedbackCategories) => {
     setFeedbackCategories(prev => ({
@@ -91,20 +151,58 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
     setCurrentStep(1);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Mark all step 2 fields as touched
-    setTouched(prev => ({
+    setTouched((prev) => ({
       ...prev,
       projectDocument: true,
       feedbackCategories: true,
       dueDate: true,
     }));
 
-    if (isFormValid()) {
-      // Handle submission logic
+    if (!isFormValid()) return;
+
+    if (!isStep1Valid()) {
+      setCurrentStep(1);
+      return;
+    }
+
+    try {
+      // Convert checkbox object -> array of category strings
+      const categories = (Object.entries(feedbackCategories)
+        .filter(([_, checked]) => checked)
+        .map(([key]) => key) as FeedbackCategory[]);
+
+      // dueDate is Date | undefined -> convert to YYYY-MM-DD
+      const dueDateStr = dueDate!.toISOString().slice(0, 10);
+
+      //DEBUG
+      console.log({ course, week, projectTeam, projectTitle, projectDocument });
+
+      const selectedCategories = (Object.entries(feedbackCategories)
+      .filter(([, checked]) => checked)
+      .map(([key]) => key)) as FeedbackCategory[];
+      
+      await createSubmission({
+        course,
+        week,
+        projectTeam,          // ✅ MUST be projectTeam (camelCase)
+        projectTitle,
+        description,
+        projectDocumentUrl: projectDocument,
+        feedbackCategories: selectedCategories, // your array logic
+        dueDate: dueDate!.toISOString().slice(0, 10),
+      });
+
+      localStorage.removeItem(DRAFT_KEY);
+      // Success → go back to dashboard (your current behavior)
       onBack();
+    } catch (err: any) {
+      console.error("Submission failed:", err);
+      alert(err?.message ?? "Submission failed");
     }
   };
+
 
   const handleBlur = (field: keyof typeof touched) => {
     setTouched(prev => ({ ...prev, [field]: true }));
