@@ -3,6 +3,8 @@ import { BookOpen, Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } fro
 import { startSignupOtp, loginWithPassword, setPassword as setUserPassword } from "../services/auth";
 import { supabase } from "../lib/supabaseClient";
 import { verifyEmailOtp } from '../services/auth';
+import { env } from "../lib/env";
+
 
 /**
  * Props for the LoginPage component
@@ -66,6 +68,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
     setEmailError('');
     return true;
+    
   };
 
   /**

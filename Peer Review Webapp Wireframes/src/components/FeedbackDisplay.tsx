@@ -2,7 +2,7 @@ import { Star } from 'lucide-react';
 
 interface Review {
   reviewerName: string;
-  overallRating: number;
+  overallRating: number | null;
   clarity: number | null;
   organization: number | null;
   technicalSoundness: number | null;
@@ -49,7 +49,7 @@ export function FeedbackDisplay({ review }: FeedbackDisplayProps) {
               <Star
                 key={star}
                 className={`w-4 h-4 ${
-                  star <= review.overallRating
+                  star <= (review.overallRating ?? 0)
                     ? 'fill-yellow-400 text-yellow-400'
                     : 'text-gray-300'
                 }`}

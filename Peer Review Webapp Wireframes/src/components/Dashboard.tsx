@@ -10,6 +10,8 @@ import {
   getAllSubmissionsFiltered,
   getDistinctCourses
 } from "../lib/submissionService";
+import { getSubmittedReviewsForSubmission } from "../lib/reviewService";
+import type { ReviewDisplayRow } from "../lib/reviewService";
 
 
 
@@ -23,7 +25,7 @@ type SortField = 'projectTitle' | 'course' | 'week' | 'status' | 'numReviews' | 
 type AllSubmissionsSortField = 'projectTitle' | 'teamName' | 'courseSemester' | 'status' | 'numReviews' | 'overallScore';
 
 interface StudentSubmission {
-  id: number;
+  id: string;
   projectTitle: string;
   course: string;
   week: string;
@@ -91,6 +93,11 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [myDbSubmissions, setMyDbSubmissions] = useState<StudentSubmission[]>([]);
   const [allDbSubmissions, setAllDbSubmissions] = useState<AllSubmission[]>([]);
   const [subsLoading, setSubsLoading] = useState(true);
+  //const [submissionReviews, setSubmissionReviews] = useState<Record<string, any[]>>({});
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
+
+
 
 
   useEffect(() => {
@@ -125,7 +132,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
         setMyDbSubmissions(
           mine.map((s) => ({
-            id: Number.NaN, // later switch your UI id types to string
+            id: s.id, // later switch your UI id types to string
             projectTitle: s.project_title,
             course: s.course,
             week: s.week,
@@ -172,6 +179,48 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     }
     loadCourses();
   }, []);
+
+
+  useEffect(() => {
+    async function loadReviews() {
+      if (!selectedSubmissionForDetails) return;
+
+      setReviewsLoading(true);
+      try {
+        const r = await getSubmittedReviewsForSubmission(
+          selectedSubmissionForDetails.id
+        );
+        setReviews(r);
+      } catch (e) {
+        console.error("Failed to load reviews:", e);
+      } finally {
+        setReviewsLoading(false);
+      }
+    }
+
+    loadReviews();
+  }, [selectedSubmissionForDetails]);
+
+
+  useEffect(() => {
+    async function loadAllModalReviews() {
+      if (!selectedAllSubmission) return;
+
+      setReviewsLoading(true);
+      try {
+        const r = await getSubmittedReviewsForSubmission(selectedAllSubmission.id);
+        setReviews(r);
+      } catch (e) {
+        console.error("Failed to load reviews (all modal):", e);
+      } finally {
+        setReviewsLoading(false);
+      }
+    }
+
+    loadAllModalReviews();
+  }, [selectedAllSubmission]);
+
+
 
 
 
@@ -560,7 +609,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const allReviewsPending = allDbSubmissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
   const allCompletedReviews = allDbSubmissions.reduce((acc, sub) => acc + sub.numReviews, 0);
 
-
   const handleAllSort = (field: AllSubmissionsSortField) => {
     if (allSortField === field) {
       setAllSortDirection(allSortDirection === 'asc' ? 'desc' : 'asc');
@@ -577,9 +625,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
       : <ChevronDown className="w-4 h-4 text-blue-600" />;
   };
 
-  const handleAllRowClick = (submission: AllSubmission) => {
-    setSelectedAllSubmission(submission);
-  };
+  
+
 
   const closeAllDetailsModal = () => {
     setSelectedAllSubmission(null);
@@ -630,6 +677,12 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const handleRowClick = (submission: StudentSubmission) => {
     setSelectedSubmissionForDetails(submission);
   };
+
+  const handleAllRowClick = (submission: AllSubmission) => {
+    setSelectedAllSubmission(submission);
+  };
+
+
 
   const closeDetailsModal = () => {
     setSelectedSubmissionForDetails(null);
@@ -1245,10 +1298,34 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               {/* Reviews List */}
               <div className="space-y-6">
                 <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
-                {selectedSubmissionForDetails.reviews.map((review, idx) => (
-                  <FeedbackDisplay key={idx} review={review} />
-                ))}
+
+                {reviewsLoading ? (
+                  <div className="text-sm text-gray-600">Loading reviews...</div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                ) : (
+                  <div className="space-y-6">
+                    {reviews.map((r, idx) => (
+                      <FeedbackDisplay
+                        key={r.id ?? idx}
+                        review={{
+                          reviewerName: r.reviewerName,
+                          overallRating: r.overallRating,
+                          clarity: r.clarity,
+                          organization: r.organization,
+                          technicalSoundness: r.technicalSoundness,
+                          usability: r.usability,
+                          strengths: r.strengths ?? "",
+                          improvements: r.improvements ?? "",
+                          oneChange: r.oneChange ?? "",
+                          otherObservations: r.otherObservations ?? "",
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
+
             </div>
 
             {/* Modal Footer */}
@@ -1311,12 +1388,36 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               </div>
 
               {/* Reviews List */}
-              <div className="space-y-6">
-                <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
-                {selectedAllSubmission.reviews.map((review, idx) => (
-                  <FeedbackDisplay key={idx} review={review} />
-                ))}
-              </div>
+              <h4 className="font-semibold text-gray-900 text-lg mb-4">
+                Peer Reviews
+              </h4>
+
+              {reviewsLoading ? (
+                <div className="text-sm text-gray-600">Loading reviews...</div>
+              ) : reviews.length === 0 ? (
+                <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+              ) : (
+                <div className="space-y-6">
+                  {reviews.map((r, idx) => (
+                    <FeedbackDisplay
+                      key={r.id ?? idx}
+                      review={{
+                        reviewerName: r.reviewerName,
+                        overallRating: r.overallRating,
+                        clarity: r.clarity,
+                        organization: r.organization,
+                        technicalSoundness: r.technicalSoundness,
+                        usability: r.usability,
+                        strengths: r.strengths ?? "",
+                        improvements: r.improvements ?? "",
+                        oneChange: r.oneChange ?? "",
+                        otherObservations: r.otherObservations ?? "",
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
             </div>
 
             {/* Modal Footer */}
