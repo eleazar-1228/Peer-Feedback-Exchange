@@ -8,7 +8,7 @@ import { ProfessorView } from './components/ProfessorView';
 import { SubmissionFeedback } from './components/SubmissionFeedback';
 import { LogOut } from 'lucide-react';
 import { supabase } from "./lib/supabaseClient";
-import { useEffect,useMemo} from "react";
+import { useEffect, useMemo, useRef} from "react";
 
 type UserRole = 'student' | 'professor';
 
@@ -21,41 +21,60 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const didInitRef = useRef(false);
+
+
   // Persist login: check session on load and listen for auth changes
   useEffect(() => {
+    // ✅ prevents StrictMode double-run in dev
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
     let unsub: { subscription: { unsubscribe: () => void } } | null = null;
+    let mounted = true;
 
     async function init() {
-      const { data } = await supabase.auth.getSession();
-      const hasSession = !!data.session;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const hasSession = !!data.session;
 
-      setIsLoggedIn(hasSession);
-      setSessionChecked(true);
+        if (!mounted) return;
 
-      if (hasSession) {
-        await loadRoleFromProfile();
-      }
+        setIsLoggedIn(hasSession);
 
-      const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        const loggedIn = !!session;
-        setIsLoggedIn(loggedIn);
-
-        if (loggedIn) {
+        if (hasSession) {
           await loadRoleFromProfile();
-        } else {
-          setCurrentRole(null);
         }
-      });
 
-      unsub = sub;
+        const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+          const loggedIn = !!session;
+          setIsLoggedIn(loggedIn);
+
+          if (loggedIn) {
+            await loadRoleFromProfile();
+          } else {
+            setCurrentRole(null);
+          }
+        });
+
+        unsub = sub;
+      } catch (e) {
+        console.error("Session init failed:", e);
+      } finally {
+        if (mounted) setSessionChecked(true);
+      }
     }
 
     init();
 
     return () => {
+      mounted = false;
       unsub?.subscription.unsubscribe();
     };
   }, []);
+
+
+
 
 
   async function loadRoleFromProfile() {
