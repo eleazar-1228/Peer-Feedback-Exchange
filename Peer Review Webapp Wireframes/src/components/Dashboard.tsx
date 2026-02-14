@@ -225,11 +225,16 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
 
   
+  // REMOVED: All mock data arrays have been deleted
+  // The dashboard now uses only real database data:
+  // - myDbSubmissions (from getMySubmissions())
+  // - allDbSubmissions (from getAllSubmissionsFiltered())
+  // - reviews (from getSubmittedReviewsForSubmission())
 
-  // Mock data for student's submissions with reviews
-  const mySubmissionsData: StudentSubmission[] = [
+  /* MOCK DATA REMOVED - DO NOT USE
+  const mySubmissionsData_REMOVED: StudentSubmission[] = [
     {
-      id: 1,
+      id: "1",
       projectTitle: 'Research Paper: AI Ethics',
       course: 'MET CS633 – Spring 1, 2026',
       week: 'Week 3',
@@ -340,9 +345,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
       ],
     },
   ];
+  END OF MOCK DATA */
 
-  // Mock data for Feedback Received (User is Author)
-  const feedbackReceivedData = [
+  // Mock data for Feedback Received (User is Author) - REMOVED
+  /* const feedbackReceivedData = [
     {
       id: 1,
       projectTitle: 'Research Paper: AI Ethics',
@@ -412,10 +418,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         usability: 0,
       },
     },
-  ];
+  ]; */
 
-  // Mock data for Feedback Provided (User is Reviewer)
-  const feedbackProvidedData = [
+  // Mock data for Feedback Provided (User is Reviewer) - REMOVED
+  /* const feedbackProvidedData = [
     {
       id: 1,
       projectTitle: 'E-commerce Platform Redesign',
@@ -482,18 +488,29 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         usability: 4,
       },
     },
-  ];
+  ]; */
 
-  // Calculate stats
+  // Calculate stats from REAL data only
   const totalSubmissions = myDbSubmissions.length;
-  const reviewsPending = mySubmissionsData.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
-  const completedReviews = mySubmissionsData.reduce((acc, sub) => acc + sub.numReviews, 0);
+  const reviewsPending = 0; // TODO: Calculate from actual review assignments
+  const completedReviews = 0; // TODO: Calculate from actual completed reviews
 
-  const selectedFeedbackReceivedItem = feedbackReceivedData.find(item => item.id === selectedFeedbackReceived);
-  const selectedFeedbackProvidedItem = feedbackProvidedData.find(item => item.id === selectedFeedbackProvided);
+  // REMOVED: Mock data - using only real database data now
+  const selectedFeedbackReceivedItem = null; // TODO: Implement with real data
+  const selectedFeedbackProvidedItem = null; // TODO: Implement with real data
 
-  // Mock data for All Feedback tab (all submissions from all students, similar to professor view)
-  const allSubmissionsData: AllSubmission[] = [
+  // Get unique courses and teams from REAL data
+  const uniqueCourses = Array.from(new Set(allDbSubmissions.map(s => s.courseSemester))).sort();
+  const uniqueTeams = Array.from(new Set(allDbSubmissions.map(s => s.teamName))).sort();
+
+  // REMOVED ALL MOCK DATA - Dashboard now uses only real database data
+  // The following mock data has been removed:
+  // - mySubmissionsData (replaced by myDbSubmissions)
+  // - feedbackReceivedData (to be implemented with real data)
+  // - feedbackProvidedData (to be implemented with real data)
+  // - allSubmissionsData (replaced by allDbSubmissions)
+  
+  const allSubmissionsData_REMOVED_DO_NOT_USE: AllSubmission[] = [
     { id: '1', projectTitle: 'BU Peer Review Platform', teamName: 'Team Four', courseSemester: 'MET CS633 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.2, reviews: [
       {
         reviewerName: 'Student A',
@@ -563,11 +580,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     { id: '4', projectTitle: 'Healthcare Portal', teamName: 'Team One', courseSemester: 'MET CS601 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.5, reviews: []},
     { id: '5', projectTitle: 'Social Media Analytics', teamName: 'Team Three', courseSemester: 'MET CS633 – Spring 1, 2026', status: 'Pending', numReviews: 2, overallScore: null, reviews: []},
     { id: '6', projectTitle: 'Learning Management System', teamName: 'Team Six', courseSemester: 'MET CS601 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.0, reviews: []},
-  ];
-
-  // Get unique courses for filter
-  const uniqueCourses = Array.from(new Set(allDbSubmissions.map(s => s.courseSemester))).sort();
-  const uniqueTeams = Array.from(new Set(allDbSubmissions.map(s => s.teamName))).sort();
+  ]; */
 
 
   // Filter and sort all submissions
@@ -1119,8 +1132,23 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         </div>
       )}
 
-      {/* Feedback Tab */}
+      {/* Feedback Tab - TEMPORARILY DISABLED (uses mock data) */}
       {activeTab === 'feedback' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-8">
+          <div className="text-center">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Feedback Details Coming Soon</h3>
+            <p className="text-gray-600 mb-4">
+              This feature will show detailed feedback you've received and provided once reviews are implemented.
+            </p>
+            <p className="text-sm text-gray-500">
+              For now, you can view all submissions in the "All Feedback" tab and your submissions in the "My Feedback Overview" tab.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* REMOVED: Old Feedback Tab with mock data */}
+      {false && activeTab === 'feedback' && (
         <div>
           {/* Primary Feedback Sections - Side by Side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1138,7 +1166,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </div>
               </div>
               <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-                {feedbackReceivedData.map((item) => (
+                {[].map((item: any) => (
                   <div
                     key={item.id}
                     onClick={() => item.status === 'Feedback Received' && setSelectedFeedbackReceived(item.id)}
@@ -1193,7 +1221,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </div>
               </div>
               <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-                {feedbackProvidedData.map((item) => (
+                {[].map((item: any) => (
                   <div
                     key={item.id}
                     onClick={() => setSelectedFeedbackProvided(item.id)}

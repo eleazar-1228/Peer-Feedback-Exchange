@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Users, Award } from 'lucide-react';
 import { FeedbackDisplay } from './FeedbackDisplay';
+import { getAllSubmissionsFiltered, getDistinctCourses, type SubmissionRow } from '../lib/submissionService';
+import { getSubmittedReviewsForSubmission, type ReviewDisplayRow } from '../lib/reviewService';
 
 type SubmissionStatus = 'Pending' | 'Reviewed';
 
@@ -35,19 +37,92 @@ export function ProfessorView() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  
+  // Real data from Supabase
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [dbCourses, setDbCourses] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
-  // Mock data for submissions
-  const submissions: Submission[] = [
+  // Load submissions from database
+  useEffect(() => {
+    async function loadSubmissions() {
+      setLoading(true);
+      try {
+        const data = await getAllSubmissionsFiltered({
+          course: filterCourse || undefined,
+          teamName: filterTeam || undefined,
+          status: (filterStatus as "Pending" | "Reviewed") || undefined,
+          limit: 200,
+          offset: 0,
+        });
+
+        setSubmissions(
+          data.map((s) => ({
+            id: s.id,
+            projectTitle: s.project_title,
+            teamName: s.project_team,
+            courseSemester: s.course,
+            status: s.status === "pending" ? "Pending" : "Reviewed",
+            numReviews: 0, // TODO: Calculate from reviews
+            overallScore: null, // TODO: Calculate from reviews
+          }))
+        );
+      } catch (e) {
+        console.error("Failed to load submissions:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSubmissions();
+  }, [filterCourse, filterTeam, filterStatus]);
+
+  // Load courses
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        const courses = await getDistinctCourses();
+        setDbCourses(courses);
+      } catch (e) {
+        console.error("Failed to load course list:", e);
+      }
+    }
+    loadCourses();
+  }, []);
+
+  // Load reviews when submission is selected
+  useEffect(() => {
+    async function loadReviews() {
+      if (!selectedSubmission) return;
+
+      setReviewsLoading(true);
+      try {
+        const r = await getSubmittedReviewsForSubmission(selectedSubmission.id);
+        setReviews(r);
+      } catch (e) {
+        console.error("Failed to load reviews:", e);
+      } finally {
+        setReviewsLoading(false);
+      }
+    }
+
+    loadReviews();
+  }, [selectedSubmission]);
+
+  // REMOVED: Mock data - now using real database data
+  /* const submissions_MOCK: Submission[] = [
     { id: '1', projectTitle: 'BU Peer Review Platform', teamName: 'Team Four', courseSemester: 'MET CS633 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.2 },
     { id: '2', projectTitle: 'Mobile Banking App', teamName: 'Team Two', courseSemester: 'MET CS601 – Spring 1, 2026', status: 'Pending', numReviews: 1, overallScore: null },
     { id: '3', projectTitle: 'E-commerce Dashboard', teamName: 'Team Five', courseSemester: 'MET CS633 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 3.8 },
     { id: '4', projectTitle: 'Healthcare Portal', teamName: 'Team One', courseSemester: 'MET CS601 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.5 },
     { id: '5', projectTitle: 'Social Media Analytics', teamName: 'Team Three', courseSemester: 'MET CS633 – Spring 1, 2026', status: 'Pending', numReviews: 2, overallScore: null },
     { id: '6', projectTitle: 'Learning Management System', teamName: 'Team Six', courseSemester: 'MET CS601 – Spring 1, 2026', status: 'Reviewed', numReviews: 3, overallScore: 4.0 },
-  ];
+  ]; */
 
-  // Mock data for reviews (reviewers identified by name)
-  const mockReviews: Review[] = [
+  // REMOVED: Mock reviews - now using real database data
+  /* const mockReviews: Review[] = [
     {
       reviewerName: 'Alex Smith',
       overallRating: 4,
@@ -84,16 +159,16 @@ export function ProfessorView() {
       oneChange: 'Improve code comments for maintainability.',
       otherObservations: 'Strong project with minor areas for improvement.'
     }
-  ];
+  ]; */
 
-  // Calculate stats
+  // Calculate stats from REAL data
   const totalSubmissions = submissions.length;
   const reviewsPending = submissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
   const completedReviews = submissions.reduce((acc, sub) => acc + sub.numReviews, 0);
 
-  // Get unique courses for filter
-  const uniqueCourses = Array.from(new Set(submissions.map(s => s.courseSemester)));
-  const uniqueTeams = Array.from(new Set(submissions.map(s => s.teamName)));
+  // Get unique courses and teams for filter from REAL data
+  const uniqueCourses = dbCourses;
+  const uniqueTeams = Array.from(new Set(submissions.map(s => s.teamName))).sort();
 
   // Calculate analytics data
   // Top 5 Projects with Highest Number of Reviews
@@ -214,6 +289,11 @@ export function ProfessorView() {
 
       {/* Overview Tab */}
       {activeTab === 'overview' && (
+        loading ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+            <p className="text-gray-600">Loading submissions...</p>
+          </div>
+        ) : (
         <div>
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -536,13 +616,35 @@ export function ProfessorView() {
               <div>
                 <h4 className="font-semibold text-gray-900 text-lg mb-1">Peer Reviews</h4>
                 <p className="text-sm text-gray-600 mb-4">Feedback is attributed; reviewer names are shown below.</p>
-                <div className="border border-gray-200 rounded-lg max-h-[600px] overflow-y-auto divide-y divide-gray-200">
-                  {mockReviews.map((review, idx) => (
-                    <div key={idx} className="p-4 first:rounded-t-lg last:rounded-b-lg">
-                      <FeedbackDisplay review={review} />
-                    </div>
-                  ))}
-                </div>
+                
+                {reviewsLoading ? (
+                  <div className="text-sm text-gray-600 p-4">Loading reviews...</div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-sm text-gray-600 p-4 border border-gray-200 rounded-lg">
+                    No reviews submitted yet for this submission.
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg max-h-[600px] overflow-y-auto divide-y divide-gray-200">
+                    {reviews.map((review, idx) => (
+                      <div key={review.id ?? idx} className="p-4 first:rounded-t-lg last:rounded-b-lg">
+                        <FeedbackDisplay 
+                          review={{
+                            reviewerName: review.reviewerName,
+                            overallRating: review.overallRating,
+                            clarity: review.clarity,
+                            organization: review.organization,
+                            technicalSoundness: review.technicalSoundness,
+                            usability: review.usability,
+                            strengths: review.strengths ?? "",
+                            improvements: review.improvements ?? "",
+                            oneChange: review.oneChange ?? "",
+                            otherObservations: review.otherObservations ?? "",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -559,5 +661,7 @@ export function ProfessorView() {
         </div>
       )}
     </div>
+        )
+      )}
   );
 }
