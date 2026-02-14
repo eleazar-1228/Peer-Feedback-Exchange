@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 
+// Option 1: OTP-based signup (has rate limits)
 export async function startSignupOtp(email: string) {
   return supabase.auth.signInWithOtp({
     email,
@@ -13,18 +14,27 @@ export function verifyEmailOtp(email: string, token: string) {
   return supabase.auth.verifyOtp({
     email,
     token,
-    type: "signup", //change to signup if "email" fails
+    type: "signup",
   });
 }
 
 export async function setPassword(password: string) {
   return supabase.auth.updateUser({ password });
-  
 }
 
-// ✅ ADD THIS (fixes "no exported member")
+// Option 2: Direct password-based signup (no rate limits)
+export async function signUpWithPassword(email: string, password: string) {
+  return supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: window.location.origin,
+    },
+  });
+}
+
 export async function loginWithPassword(email: string, password: string) {
-    return supabase.auth.signInWithPassword({ email, password });
+  return supabase.auth.signInWithPassword({ email, password });
 }
 
 

@@ -11,7 +11,12 @@ class AppErrorBoundary extends React.Component<
   state = { hasError: false, error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
+    console.error("Error boundary caught error:", error);
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Error details:", error, errorInfo);
   }
 
   render() {

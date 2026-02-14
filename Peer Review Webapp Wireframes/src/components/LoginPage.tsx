@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
-import { startSignupOtp, loginWithPassword, setPassword as setUserPassword } from "../services/auth";
+import { startSignupOtp, loginWithPassword, setPassword as setUserPassword, signUpWithPassword } from "../services/auth";
 import { supabase } from "../lib/supabaseClient";
 import { verifyEmailOtp } from '../services/auth';
 import { env } from "../lib/env";
@@ -26,6 +26,8 @@ interface LoginPageProps {
  * Only accepts @bu.edu email addresses for authentication
  */
 export function LoginPage({ onLogin }: LoginPageProps) {
+  console.log("LoginPage component rendered");
+  
   // Current mode: login, signup, or email verification
   const [mode, setMode] = useState<'login' | 'signup' | 'verify'>('login');
   
@@ -34,6 +36,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   
   // User password component
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // User type selection (student or professor)
   const [userType, setUserType] = useState<'student' | 'professor'>('student');
@@ -98,7 +101,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted", { mode, email, password: password ? "***" : "empty" });
+    console.log("=== FORM SUBMITTED ===", { mode, email, password: password ? "***" : "empty" });
 
     // Clear previous errors
     setSocialLoginError("");
@@ -111,8 +114,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
 
       if (mode === "signup") {
-        console.log("Starting signup OTP...");
-        const { error } = await startSignupOtp(email);
+        console.log("Starting password-based signup...");
+        
+        if (!password) {
+          setSocialLoginError("Password is required");
+          return;
+        }
+        
+        if (password.length < 6) {
+          setSocialLoginError("Password must be at least 6 characters");
+          return;
+        }
+        
+        if (password !== confirmPassword) {
+          setSocialLoginError("Passwords do not match");
+          return;
+        }
+
+        // Direct password-based signup (no OTP needed)
+        const { data, error } = await signUpWithPassword(email, password);
 
         if (error) {
           console.error("Signup error:", error);
@@ -120,8 +140,36 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           return;
         }
 
-        console.log("OTP sent successfully");
-        setMode("verify");
+        console.log("Signup successful:", data);
+        
+        // If user is created, insert profile
+        if (data.user) {
+          const { error: profileError } = await supabase.from("profiles").insert({
+            id: data.user.id,
+            role: userType,
+            first_name: firstName,
+            last_name: lastName,
+            student_id: studentId,
+          });
+
+          if (profileError) {
+            console.error("Profile creation error:", profileError);
+            setSocialLoginError("Account created but profile setup failed: " + profileError.message);
+            return;
+          }
+
+          console.log("Profile created successfully");
+          
+          // Check if email confirmation is required
+          if (data.session) {
+            // User is automatically logged in
+            onLogin(userType);
+          } else {
+            // Email confirmation required
+            setSocialLoginError("Account created! Please check your email to confirm your account, then log in.");
+            setMode("login");
+          }
+        }
         return;
       }
 
@@ -344,6 +392,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           {/* Mode Toggle */}
           <div className="flex gap-2 mb-8 bg-gray-100 p-1 rounded-lg max-w-md mx-auto">
             <button
+              type="button"
               onClick={() => setMode('login')}
               className={`flex-1 py-2 px-4 rounded-md transition-all ${
                 mode === 'login'
@@ -354,6 +403,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               Log In
             </button>
             <button
+              type="button"
               onClick={() => setMode('signup')}
               className={`flex-1 py-2 px-4 rounded-md transition-all ${
                 mode === 'signup'
@@ -528,6 +578,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
@@ -585,6 +637,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <button
               type="submit"
               disabled={isSubmitting}
+              onClick={(e) => {
+                console.log("Button clicked!", { mode, isSubmitting });
+              }}
               className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Please wait...' : (mode === 'login' ? 'Log In' : 'Create Account')}
