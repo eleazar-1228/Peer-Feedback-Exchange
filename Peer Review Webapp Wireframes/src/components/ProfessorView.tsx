@@ -483,6 +483,7 @@ export function ProfessorView() {
             )}
           </div>
         </div>
+        )
       )}
 
       {/* Analytics Tab */}
@@ -661,7 +662,5 @@ export function ProfessorView() {
         </div>
       )}
     </div>
-        )
-      )}
   );
 }
