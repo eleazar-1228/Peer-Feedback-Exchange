@@ -49,6 +49,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   
   // Error message for social login attempts
   const [socialLoginError, setSocialLoginError] = useState('');
+  
+  // Loading state for form submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // User Login Credential components
   const [firstName, setFirstName] = useState("");
@@ -62,6 +65,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
    * @returns true if valid, false otherwise
    */
   const validateEmail = (emailValue: string) => {
+    // Allow non-BU emails in development if env flag is set
+    if (env.allowNonBuEmails) {
+      setEmailError('');
+      return true;
+    }
+    
     if (!emailValue.endsWith('@bu.edu')) {
       setEmailError('Only @bu.edu email addresses are allowed');
       return false;
@@ -89,30 +98,57 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Form submitted", { mode, email, password: password ? "***" : "empty" });
 
-    if (!validateEmail(email)) return;
+    // Clear previous errors
+    setSocialLoginError("");
+    setIsSubmitting(true);
 
-    if (mode === "signup") {
-      const { error } = await startSignupOtp(email);
-
-      if (error) {
-        setSocialLoginError(error.message);
+    try {
+      if (!validateEmail(email)) {
+        console.log("Email validation failed");
         return;
       }
 
-      setMode("verify");
-      return;
-    }
+      if (mode === "signup") {
+        console.log("Starting signup OTP...");
+        const { error } = await startSignupOtp(email);
 
-    if (mode === "login") {
-      const { error } = await loginWithPassword(email, password);
+        if (error) {
+          console.error("Signup error:", error);
+          setSocialLoginError(error.message);
+          return;
+        }
 
-      if (error) {
-        setSocialLoginError(error.message);
+        console.log("OTP sent successfully");
+        setMode("verify");
         return;
       }
 
-      onLogin(userType);
+      if (mode === "login") {
+        console.log("Attempting login...");
+        
+        if (!password) {
+          setSocialLoginError("Password is required");
+          return;
+        }
+
+        const { error } = await loginWithPassword(email, password);
+
+        if (error) {
+          console.error("Login error:", error);
+          setSocialLoginError(error.message);
+          return;
+        }
+
+        console.log("Login successful");
+        onLogin(userType);
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setSocialLoginError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -537,12 +573,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             )}
 
+            {/* Error Display */}
+            {socialLoginError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <p className="text-sm text-red-800">{socialLoginError}</p>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium"
+              disabled={isSubmitting}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {mode === 'login' ? 'Log In' : 'Create Account'}
+              {isSubmitting ? 'Please wait...' : (mode === 'login' ? 'Log In' : 'Create Account')}
             </button>
           </form>
         </div>
