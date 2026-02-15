@@ -275,8 +275,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const completedReviews = myCompletedReviewsCount;
 
   // REMOVED: Mock data - using only real database data now
-  const selectedFeedbackReceivedItem = null; // TODO: Implement with real data
-  const selectedFeedbackProvidedItem = null; // TODO: Implement with real data
 
   // Get unique courses and teams from REAL data
   const uniqueCourses = Array.from(new Set(allDbSubmissions.map(s => s.courseSemester))).sort();
@@ -961,23 +959,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modals for Feedback Sections */}
-      {selectedFeedbackReceivedItem && selectedFeedbackReceivedItem.status === 'Feedback Received' && (
-        <FeedbackReceivedModal
-          isOpen={selectedFeedbackReceived !== null}
-          onClose={() => setSelectedFeedbackReceived(null)}
-          submission={selectedFeedbackReceivedItem}
-        />
-      )}
-
-      {selectedFeedbackProvidedItem && (
-        <FeedbackProvidedModal
-          isOpen={selectedFeedbackProvided !== null}
-          onClose={() => setSelectedFeedbackProvided(null)}
-          review={selectedFeedbackProvidedItem}
-        />
       )}
 
       {/* Submission Details Modal (from Overview table) */}
