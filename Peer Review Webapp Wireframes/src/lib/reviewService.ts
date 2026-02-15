@@ -312,3 +312,48 @@ export async function getReviewCountsForSubmissions(submissionIds: string[]): Pr
 
   return counts;
 }
+
+export type SubmissionReviewStats = {
+  numReviews: number;
+  overallScore: number | null;
+};
+
+/**
+ * Get review statistics (count and average score) for multiple submissions.
+ * Returns a map of submission_id -> { numReviews, overallScore }.
+ */
+export async function getReviewStatsForSubmissions(submissionIds: string[]): Promise<Record<string, SubmissionReviewStats>> {
+  if (submissionIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("submission_id, overall_rating")
+    .eq("status", "submitted")
+    .in("submission_id", submissionIds);
+
+  if (error) throw error;
+
+  // Calculate count and average score per submission
+  const stats: Record<string, SubmissionReviewStats> = {};
+  
+  for (const row of data ?? []) {
+    if (!stats[row.submission_id]) {
+      stats[row.submission_id] = {
+        numReviews: 0,
+        overallScore: null,
+      };
+    }
+    
+    stats[row.submission_id].numReviews += 1;
+    
+    // Calculate running average for overall score
+    const currentAvg = stats[row.submission_id].overallScore ?? 0;
+    const count = stats[row.submission_id].numReviews;
+    const rating = row.overall_rating ?? 0;
+    
+    stats[row.submission_id].overallScore = 
+      (currentAvg * (count - 1) + rating) / count;
+  }
+
+  return stats;
+}

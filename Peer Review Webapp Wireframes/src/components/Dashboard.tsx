@@ -10,7 +10,7 @@ import {
   getAllSubmissionsFiltered,
   getDistinctCourses
 } from "../lib/submissionService";
-import { getSubmittedReviewsForSubmission, getReviewCountsForSubmissions } from "../lib/reviewService";
+import { getSubmittedReviewsForSubmission, getReviewStatsForSubmissions } from "../lib/reviewService";
 import type { ReviewDisplayRow } from "../lib/reviewService";
 
 
@@ -130,36 +130,42 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
           }),
         ]);
 
-        // Get review counts for all submissions
+        // Get review stats (counts and average scores) for all submissions
         const allSubmissionIds = [...mine.map(s => s.id), ...all.map(s => s.id)];
-        const reviewCounts = await getReviewCountsForSubmissions(allSubmissionIds);
+        const reviewStats = await getReviewStatsForSubmissions(allSubmissionIds);
 
         setMyDbSubmissions(
-          mine.map((s) => ({
-            id: s.id, // later switch your UI id types to string
-            projectTitle: s.project_title,
-            course: s.course,
-            week: s.week,
-            projectTeam: s.project_team,
-            submittedDate: new Date(s.created_at).toLocaleDateString(),
-            status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: reviewCounts[s.id] || 0,
-            overallScore: null,
-            reviews: [],
-          }))
+          mine.map((s) => {
+            const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+            return {
+              id: s.id,
+              projectTitle: s.project_title,
+              course: s.course,
+              week: s.week,
+              projectTeam: s.project_team,
+              submittedDate: new Date(s.created_at).toLocaleDateString(),
+              status: s.status === "pending" ? "Pending" : "Reviewed",
+              numReviews: stats.numReviews,
+              overallScore: stats.overallScore,
+              reviews: [],
+            };
+          })
         );
 
         setAllDbSubmissions(
-          all.map((s) => ({
-            id: s.id,
-            projectTitle: s.project_title,
-            teamName: s.project_team,
-            courseSemester: s.course,
-            status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: reviewCounts[s.id] || 0,
-            overallScore: null,
-            reviews: [],
-          }))
+          all.map((s) => {
+            const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+            return {
+              id: s.id,
+              projectTitle: s.project_title,
+              teamName: s.project_team,
+              courseSemester: s.course,
+              status: s.status === "pending" ? "Pending" : "Reviewed",
+              numReviews: stats.numReviews,
+              overallScore: stats.overallScore,
+              reviews: [],
+            };
+          })
         );
       } catch (e) {
         console.error("Failed to load submissions:", e);
