@@ -205,6 +205,7 @@ export async function submitReview(submissionId: string, input: SaveReviewInput)
 export type ReviewDisplayRow = {
   id: string;
   reviewerName: string;
+  submittedAt: string;
 
   overallRating: number;
   clarity: number | null;
@@ -230,6 +231,7 @@ export type ReviewWithReviewer = ReviewRow & {
 export async function getSubmittedReviewsForSubmission(submissionId: string): Promise<ReviewDisplayRow[]> {
     await requireUser();
 
+    // Fetch reviews without the join first
     const { data, error } = await supabase
         .from("reviews")
         .select(`
@@ -248,8 +250,7 @@ export async function getSubmittedReviewsForSubmission(submissionId: string): Pr
         other_observations,
         created_at,
         updated_at,
-        submitted_at,
-        reviewer:profiles(first_name,last_name,student_id)
+        submitted_at
         `)
         .eq("submission_id", submissionId)
         .eq("status", "submitted")
@@ -259,32 +260,80 @@ export async function getSubmittedReviewsForSubmission(submissionId: string): Pr
 
     const rows = (data ?? []) as any[];
 
-    return rows.map((review) => {
+    if (rows.length === 0) {
+        return [];
+    }
 
-        // ✅ THIS is where your snippet goes
-        const p = review.reviewer?.[0];
-        const reviewerName =
-        p
-            ? (`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()
-                || p.student_id
-                || "Anonymous")
-            : "Anonymous";
+    // Fetch reviewer profiles separately - get all fields
+    const reviewerIds = rows.map(r => r.reviewer_id);
+    const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", reviewerIds);
+
+    if (profileError) {
+        // Continue without profiles rather than failing
+    }
+
+    // Create a map of reviewer_id -> profile
+    const profileMap = new Map();
+    (profiles ?? []).forEach(p => {
+        profileMap.set(p.id, p);
+    });
+
+    return rows.map((review) => {
+        const profile = profileMap.get(review.reviewer_id);
+        
+        // Try multiple fallbacks for the reviewer name
+        let reviewerName = "Anonymous";
+        
+        if (profile) {
+            // Try full name first
+            const fullName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+            if (fullName) {
+                reviewerName = fullName;
+            } 
+            // Try student ID
+            else if (profile.student_id) {
+                reviewerName = `Student ${profile.student_id}`;
+            }
+            // Try email from profile
+            else if (profile.email) {
+                reviewerName = profile.email;
+            }
+            // Try username if it exists
+            else if (profile.username) {
+                reviewerName = profile.username;
+            }
+            // Use any name-like field
+            else if (profile.name) {
+                reviewerName = profile.name;
+            }
+            // Try just the user ID as last resort
+            else {
+                reviewerName = `User ${review.reviewer_id.substring(0, 8)}`;
+            }
+        } else {
+            // No profile found, use user ID
+            reviewerName = `User ${review.reviewer_id.substring(0, 8)}`;
+        }
 
         // Convert DB row → UI object
         return {
-        id: review.id,
-        reviewerName,
+            id: review.id,
+            reviewerName,
+            submittedAt: review.submitted_at,
 
-        overallRating: review.overall_rating ?? 0,
-        clarity: review.clarity,
-        organization: review.organization,
-        technicalSoundness: review.technical_soundness,
-        usability: review.usability,
+            overallRating: review.overall_rating ?? 0,
+            clarity: review.clarity,
+            organization: review.organization,
+            technicalSoundness: review.technical_soundness,
+            usability: review.usability,
 
-        strengths: review.strengths,
-        improvements: review.improvements,
-        oneChange: review.one_change,
-        otherObservations: review.other_observations,
+            strengths: review.strengths,
+            improvements: review.improvements,
+            oneChange: review.one_change,
+            otherObservations: review.other_observations,
         };
     });
 }
@@ -356,4 +405,28 @@ export async function getReviewStatsForSubmissions(submissionIds: string[]): Pro
   }
 
   return stats;
+}
+
+/**
+ * Get the count of reviews completed by the current user.
+ * Returns the number of submitted reviews by this user.
+ */
+export async function getMyCompletedReviewsCount(): Promise<number> {
+  const user = await requireUser();
+
+  const { data, error, count } = await supabase
+    .from("reviews")
+    .select("id", { count: "exact", head: false })
+    .eq("reviewer_id", user.id)
+    .eq("status", "submitted");
+
+  if (error) {
+    console.error("Error fetching my completed reviews count:", error);
+    throw error;
+  }
+
+  console.log("My completed reviews data:", data, "Count:", count);
+
+  // Use count if available, otherwise fall back to data length
+  return count ?? data?.length ?? 0;
 }

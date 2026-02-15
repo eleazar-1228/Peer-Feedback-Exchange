@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, ClipboardCheck, CheckCircle, FileInput, ClipboardList, Calendar, BookOpen, Clock, ChevronUp, ChevronDown, X, Star, Search } from 'lucide-react';
+import { FileText, ClipboardCheck, CheckCircle, FileInput, ClipboardList, Calendar, BookOpen, Clock, ChevronUp, ChevronDown, X, Star, Search, ChevronLeft } from 'lucide-react';
 import { FeedbackReceivedModal } from './FeedbackReceivedModal';
 import { FeedbackProvidedModal } from './FeedbackProvidedModal';
 import { Badge } from './ui/badge';
@@ -10,7 +10,7 @@ import {
   getAllSubmissionsFiltered,
   getDistinctCourses
 } from "../lib/submissionService";
-import { getSubmittedReviewsForSubmission, getReviewStatsForSubmissions } from "../lib/reviewService";
+import { getSubmittedReviewsForSubmission, getReviewStatsForSubmissions, getMyCompletedReviewsCount } from "../lib/reviewService";
 import type { ReviewDisplayRow } from "../lib/reviewService";
 
 
@@ -96,6 +96,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   //const [submissionReviews, setSubmissionReviews] = useState<Record<string, any[]>>({});
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
+  const [reviewPage, setReviewPage] = useState(0);
+  const [selectedReviewForDetails, setSelectedReviewForDetails] = useState<ReviewDisplayRow | null>(null);
+  const [myCompletedReviewsCount, setMyCompletedReviewsCount] = useState(0);
 
 
 
@@ -137,6 +140,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         setMyDbSubmissions(
           mine.map((s) => {
             const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+            // Status is "Reviewed" if there's at least one review, otherwise "Pending"
+            const status = stats.numReviews > 0 ? "Reviewed" : "Pending";
             return {
               id: s.id,
               projectTitle: s.project_title,
@@ -144,7 +149,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               week: s.week,
               projectTeam: s.project_team,
               submittedDate: new Date(s.created_at).toLocaleDateString(),
-              status: s.status === "pending" ? "Pending" : "Reviewed",
+              status,
               numReviews: stats.numReviews,
               overallScore: stats.overallScore,
               reviews: [],
@@ -155,12 +160,14 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         setAllDbSubmissions(
           all.map((s) => {
             const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+            // Status is "Reviewed" if there's at least one review, otherwise "Pending"
+            const status = stats.numReviews > 0 ? "Reviewed" : "Pending";
             return {
               id: s.id,
               projectTitle: s.project_title,
               teamName: s.project_team,
               courseSemester: s.course,
-              status: s.status === "pending" ? "Pending" : "Reviewed",
+              status,
               numReviews: stats.numReviews,
               overallScore: stats.overallScore,
               reviews: [],
@@ -190,12 +197,29 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     loadCourses();
   }, []);
 
+  useEffect(() => {
+    async function loadMyReviewsCount() {
+      try {
+        const count = await getMyCompletedReviewsCount();
+        console.log("Setting my completed reviews count to:", count);
+        setMyCompletedReviewsCount(count);
+      } catch (e) {
+        console.error("Failed to load my reviews count:", e);
+      }
+    }
+    loadMyReviewsCount();
+  }, []);
+
 
   useEffect(() => {
     async function loadReviews() {
-      if (!selectedSubmissionForDetails) return;
+      if (!selectedSubmissionForDetails) {
+        setReviews([]); // Clear reviews when modal closes
+        return;
+      }
 
       setReviewsLoading(true);
+      setReviews([]); // Clear previous reviews before loading new ones
       try {
         const r = await getSubmittedReviewsForSubmission(
           selectedSubmissionForDetails.id
@@ -214,9 +238,13 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   useEffect(() => {
     async function loadAllModalReviews() {
-      if (!selectedAllSubmission) return;
+      if (!selectedAllSubmission) {
+        setReviews([]); // Clear reviews when modal closes
+        return;
+      }
 
       setReviewsLoading(true);
+      setReviews([]); // Clear previous reviews before loading new ones
       try {
         const r = await getSubmittedReviewsForSubmission(selectedAllSubmission.id);
         setReviews(r);
@@ -243,8 +271,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   // Calculate stats from REAL data only
   const totalSubmissions = myDbSubmissions.length;
-  const reviewsPending = 0; // TODO: Calculate from actual review assignments
-  const completedReviews = 0; // TODO: Calculate from actual completed reviews
+  const reviewsPending = 0; // TODO: Calculate from actual review assignments (would need a review_assignments table)
+  const completedReviews = myCompletedReviewsCount;
 
   // REMOVED: Mock data - using only real database data now
   const selectedFeedbackReceivedItem = null; // TODO: Implement with real data
@@ -289,7 +317,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   // Calculate stats for all submissions
   const totalAllSubmissions = allDbSubmissions.length;
-  const allReviewsPending = allDbSubmissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
+  // Only count submissions with status "Pending" (no reviews yet)
+  const allReviewsPending = allDbSubmissions.filter(sub => sub.status === "Pending").length;
   const allCompletedReviews = allDbSubmissions.reduce((acc, sub) => acc + sub.numReviews, 0);
 
   const handleAllSort = (field: AllSubmissionsSortField) => {
@@ -313,6 +342,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   const closeAllDetailsModal = () => {
     setSelectedAllSubmission(null);
+    setReviewPage(0);
+    setSelectedReviewForDetails(null);
   };
 
   const handleSort = (field: SortField) => {
@@ -369,6 +400,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   const closeDetailsModal = () => {
     setSelectedSubmissionForDetails(null);
+    setReviewPage(0);
+    setSelectedReviewForDetails(null);
   };
 
   if (loading) {
@@ -993,34 +1026,123 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </div>
               </div>
 
-              {/* Reviews List */}
+              {/* Reviews List or Detail View */}
               <div className="space-y-6">
-                <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
+                {selectedReviewForDetails ? (
+                  <>
+                    {/* Back Button */}
+                    <button
+                      onClick={() => setSelectedReviewForDetails(null)}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                      Back to Reviews List
+                    </button>
 
-                {reviewsLoading ? (
-                  <div className="text-sm text-gray-600">Loading reviews...</div>
-                ) : reviews.length === 0 ? (
-                  <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                    {/* Review Details */}
+                    <div>
+                      <h4 className="font-semibold text-gray-900 text-lg">Review by {selectedReviewForDetails.reviewerName}</h4>
+                      <p className="text-sm text-gray-600">
+                        Submitted on {new Date(selectedReviewForDetails.submittedAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                    </div>
+
+                    <FeedbackDisplay
+                      review={{
+                        reviewerName: selectedReviewForDetails.reviewerName,
+                        overallRating: selectedReviewForDetails.overallRating,
+                        clarity: selectedReviewForDetails.clarity,
+                        organization: selectedReviewForDetails.organization,
+                        technicalSoundness: selectedReviewForDetails.technicalSoundness,
+                        usability: selectedReviewForDetails.usability,
+                        strengths: selectedReviewForDetails.strengths ?? "",
+                        improvements: selectedReviewForDetails.improvements ?? "",
+                        oneChange: selectedReviewForDetails.oneChange ?? "",
+                        otherObservations: selectedReviewForDetails.otherObservations ?? "",
+                      }}
+                    />
+                  </>
                 ) : (
-                  <div className="space-y-6">
-                    {reviews.map((r, idx) => (
-                      <FeedbackDisplay
-                        key={r.id ?? idx}
-                        review={{
-                          reviewerName: r.reviewerName,
-                          overallRating: r.overallRating,
-                          clarity: r.clarity,
-                          organization: r.organization,
-                          technicalSoundness: r.technicalSoundness,
-                          usability: r.usability,
-                          strengths: r.strengths ?? "",
-                          improvements: r.improvements ?? "",
-                          oneChange: r.oneChange ?? "",
-                          otherObservations: r.otherObservations ?? "",
-                        }}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews ({reviews.length})</h4>
+
+                    {reviewsLoading ? (
+                      <div className="text-sm text-gray-600">Loading reviews...</div>
+                    ) : reviews.length === 0 ? (
+                      <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {reviews.slice(reviewPage * 10, (reviewPage + 1) * 10).map((r, idx) => (
+                            <div 
+                              key={r.id ?? idx} 
+                              onClick={() => setSelectedReviewForDetails(r)}
+                              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold text-gray-900">{r.reviewerName}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {new Date(r.submittedAt).toLocaleDateString('en-US', { 
+                                      year: 'numeric', 
+                                      month: 'long', 
+                                      day: 'numeric' 
+                                    })}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                    <span className="text-sm font-medium text-gray-900">{r.overallRating}/5</span>
+                                  </div>
+                                  <ChevronDown className="w-5 h-5 text-gray-400 rotate-[-90deg]" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {reviews.length > 10 && (
+                          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                            <button
+                              onClick={() => setReviewPage(Math.max(0, reviewPage - 1))}
+                              disabled={reviewPage === 0}
+                              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                                reviewPage === 0
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              <ChevronUp className="w-4 h-4 rotate-[-90deg]" />
+                              Previous
+                            </button>
+
+                            <span className="text-sm text-gray-600">
+                              Page {reviewPage + 1} of {Math.ceil(reviews.length / 10)}
+                            </span>
+
+                            <button
+                              onClick={() => setReviewPage(Math.min(Math.ceil(reviews.length / 10) - 1, reviewPage + 1))}
+                              disabled={reviewPage >= Math.ceil(reviews.length / 10) - 1}
+                              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                                reviewPage >= Math.ceil(reviews.length / 10) - 1
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Next
+                              <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1085,35 +1207,124 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </div>
               </div>
 
-              {/* Reviews List */}
-              <h4 className="font-semibold text-gray-900 text-lg mb-4">
-                Peer Reviews
-              </h4>
+              {/* Reviews List or Detail View */}
+              {selectedReviewForDetails ? (
+                <>
+                  {/* Back Button */}
+                  <button
+                    onClick={() => setSelectedReviewForDetails(null)}
+                    className="mb-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                    Back to Reviews List
+                  </button>
 
-              {reviewsLoading ? (
-                <div className="text-sm text-gray-600">Loading reviews...</div>
-              ) : reviews.length === 0 ? (
-                <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                  {/* Review Details */}
+                  <div className="mb-4">
+                    <h4 className="font-semibold text-gray-900 text-lg">Review by {selectedReviewForDetails.reviewerName}</h4>
+                    <p className="text-sm text-gray-600">
+                      Submitted on {new Date(selectedReviewForDetails.submittedAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+
+                  <FeedbackDisplay
+                    review={{
+                      reviewerName: selectedReviewForDetails.reviewerName,
+                      overallRating: selectedReviewForDetails.overallRating,
+                      clarity: selectedReviewForDetails.clarity,
+                      organization: selectedReviewForDetails.organization,
+                      technicalSoundness: selectedReviewForDetails.technicalSoundness,
+                      usability: selectedReviewForDetails.usability,
+                      strengths: selectedReviewForDetails.strengths ?? "",
+                      improvements: selectedReviewForDetails.improvements ?? "",
+                      oneChange: selectedReviewForDetails.oneChange ?? "",
+                      otherObservations: selectedReviewForDetails.otherObservations ?? "",
+                    }}
+                  />
+                </>
               ) : (
-                <div className="space-y-6">
-                  {reviews.map((r, idx) => (
-                    <FeedbackDisplay
-                      key={r.id ?? idx}
-                      review={{
-                        reviewerName: r.reviewerName,
-                        overallRating: r.overallRating,
-                        clarity: r.clarity,
-                        organization: r.organization,
-                        technicalSoundness: r.technicalSoundness,
-                        usability: r.usability,
-                        strengths: r.strengths ?? "",
-                        improvements: r.improvements ?? "",
-                        oneChange: r.oneChange ?? "",
-                        otherObservations: r.otherObservations ?? "",
-                      }}
-                    />
-                  ))}
-                </div>
+                <>
+                  <h4 className="font-semibold text-gray-900 text-lg mb-4">
+                    Peer Reviews ({reviews.length})
+                  </h4>
+
+                  {reviewsLoading ? (
+                    <div className="text-sm text-gray-600">Loading reviews...</div>
+                  ) : reviews.length === 0 ? (
+                    <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        {reviews.slice(reviewPage * 10, (reviewPage + 1) * 10).map((r, idx) => (
+                          <div 
+                            key={r.id ?? idx} 
+                            onClick={() => setSelectedReviewForDetails(r)}
+                            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-semibold text-gray-900">{r.reviewerName}</p>
+                                <p className="text-sm text-gray-600">
+                                  {new Date(r.submittedAt).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                  })}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                  <span className="text-sm font-medium text-gray-900">{r.overallRating}/5</span>
+                                </div>
+                                <ChevronDown className="w-5 h-5 text-gray-400 rotate-[-90deg]" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Pagination */}
+                      {reviews.length > 10 && (
+                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                          <button
+                            onClick={() => setReviewPage(Math.max(0, reviewPage - 1))}
+                            disabled={reviewPage === 0}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                              reviewPage === 0
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            <ChevronUp className="w-4 h-4 rotate-[-90deg]" />
+                            Previous
+                          </button>
+
+                          <span className="text-sm text-gray-600">
+                            Page {reviewPage + 1} of {Math.ceil(reviews.length / 10)}
+                          </span>
+
+                          <button
+                            onClick={() => setReviewPage(Math.min(Math.ceil(reviews.length / 10) - 1, reviewPage + 1))}
+                            disabled={reviewPage >= Math.ceil(reviews.length / 10) - 1}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                              reviewPage >= Math.ceil(reviews.length / 10) - 1
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            Next
+                            <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
             </div>
