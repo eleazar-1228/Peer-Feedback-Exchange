@@ -288,3 +288,27 @@ export async function getSubmittedReviewsForSubmission(submissionId: string): Pr
         };
     });
 }
+
+/**
+ * Get the count of submitted reviews for multiple submissions.
+ * Returns a map of submission_id -> count.
+ */
+export async function getReviewCountsForSubmissions(submissionIds: string[]): Promise<Record<string, number>> {
+  if (submissionIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("submission_id")
+    .eq("status", "submitted")
+    .in("submission_id", submissionIds);
+
+  if (error) throw error;
+
+  // Count reviews per submission
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    counts[row.submission_id] = (counts[row.submission_id] || 0) + 1;
+  }
+
+  return counts;
+}

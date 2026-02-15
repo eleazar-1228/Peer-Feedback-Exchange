@@ -10,7 +10,7 @@ import {
   getAllSubmissionsFiltered,
   getDistinctCourses
 } from "../lib/submissionService";
-import { getSubmittedReviewsForSubmission } from "../lib/reviewService";
+import { getSubmittedReviewsForSubmission, getReviewCountsForSubmissions } from "../lib/reviewService";
 import type { ReviewDisplayRow } from "../lib/reviewService";
 
 
@@ -130,6 +130,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
           }),
         ]);
 
+        // Get review counts for all submissions
+        const allSubmissionIds = [...mine.map(s => s.id), ...all.map(s => s.id)];
+        const reviewCounts = await getReviewCountsForSubmissions(allSubmissionIds);
+
         setMyDbSubmissions(
           mine.map((s) => ({
             id: s.id, // later switch your UI id types to string
@@ -139,7 +143,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             projectTeam: s.project_team,
             submittedDate: new Date(s.created_at).toLocaleDateString(),
             status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: 0,
+            numReviews: reviewCounts[s.id] || 0,
             overallScore: null,
             reviews: [],
           }))
@@ -152,7 +156,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             teamName: s.project_team,
             courseSemester: s.course,
             status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: 0,
+            numReviews: reviewCounts[s.id] || 0,
             overallScore: null,
             reviews: [],
           }))
