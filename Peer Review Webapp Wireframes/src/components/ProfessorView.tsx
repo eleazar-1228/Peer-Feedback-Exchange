@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Award } from 'lucide-react';
 import { FeedbackDisplay } from './FeedbackDisplay';
-import { getAllSubmissionsFiltered, getDistinctCourses, type SubmissionRow } from '../lib/submissionService';
+import { getAllSubmissionsFiltered, type SubmissionRow } from '../lib/submissionService';
 import { getSubmittedReviewsForSubmission, type ReviewDisplayRow } from '../lib/reviewService';
 import {
   getTopProjectsByReviews,
@@ -20,6 +20,8 @@ interface Submission {
   status: SubmissionStatus;
   numReviews: number;
   overallScore: number | null;
+  authorName: string;
+  submittedDate: string;
 }
 
 interface Review {
@@ -39,14 +41,19 @@ export function ProfessorView() {
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics'>('overview');
   const [sortField, setSortField] = useState<keyof Submission | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCourse, setFilterCourse] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   
+  // Dynamic year options (only current year)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear];
+  
   // Real data from Supabase
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [dbCourses, setDbCourses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
@@ -64,26 +71,46 @@ export function ProfessorView() {
       try {
         const [data, stats] = await Promise.all([
           getAllSubmissionsFiltered({
-            course: filterCourse || undefined,
             teamName: filterTeam || undefined,
-            status: (filterStatus as "Pending" | "Reviewed") || undefined,
             limit: 200,
             offset: 0,
           }),
           getSubmissionReviewStats(),
         ]);
 
+        console.log("Professor view - loaded submissions:", data);
+
         setSubmissions(
           data.map((s) => {
             const st = stats.get(s.id);
+            
+            // Get author name from profile
+            const author = s.author;
+            let authorName = "Unknown";
+            if (author) {
+              const fullName = `${author.first_name ?? ""} ${author.last_name ?? ""}`.trim();
+              authorName = fullName || author.student_id || "Unknown";
+            }
+            
+            // Format submission date
+            const submittedDate = s.created_at
+              ? new Date(s.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "Unknown";
+            
             return {
               id: s.id,
               projectTitle: s.project_title,
               teamName: s.project_team,
               courseSemester: s.course,
-              status: s.status === "pending" ? "Pending" : "Reviewed",
+              status: st && st.reviewCount > 0 ? "Reviewed" : "Pending",
               numReviews: st?.reviewCount ?? 0,
               overallScore: st?.avgScore ?? null,
+              authorName,
+              submittedDate,
             };
           })
         );
@@ -95,7 +122,7 @@ export function ProfessorView() {
     }
 
     loadSubmissions();
-  }, [filterCourse, filterTeam, filterStatus]);
+  }, [filterTeam]);
 
   // Load analytics when Analytics tab is active
   useEffect(() => {
@@ -122,18 +149,6 @@ export function ProfessorView() {
     loadAnalytics();
   }, [activeTab]);
 
-  // Load courses
-  useEffect(() => {
-    async function loadCourses() {
-      try {
-        const courses = await getDistinctCourses();
-        setDbCourses(courses);
-      } catch (e) {
-        console.error("Failed to load course list:", e);
-      }
-    }
-    loadCourses();
-  }, []);
 
   // Load reviews when submission is selected
   useEffect(() => {
@@ -206,19 +221,39 @@ export function ProfessorView() {
 
   // Calculate stats from REAL data
   const totalSubmissions = submissions.length;
-  const reviewsPending = submissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
+  const reviewsPending = submissions.filter(sub => sub.status === "Pending").length;
   const completedReviews = submissions.reduce((acc, sub) => acc + sub.numReviews, 0);
 
-  // Get unique courses and teams for filter from REAL data
-  const uniqueCourses = dbCourses;
-  const uniqueTeams = Array.from(new Set(submissions.map(s => s.teamName))).sort();
-
-  // Filter and sort submissions
+  // Filter and sort submissions (client-side filtering for class, semester, year)
   const filteredSubmissions = submissions.filter(sub => {
-    const matchesCourse = !filterCourse || sub.courseSemester === filterCourse;
-    const matchesStatus = !filterStatus || sub.status === filterStatus;
-    const matchesTeam = !filterTeam || sub.teamName.toLowerCase().includes(filterTeam.toLowerCase());
-    return matchesCourse && matchesStatus && matchesTeam;
+    const courseStr = sub.courseSemester || "";
+    
+    // Class filter
+    if (filterClass && !courseStr.includes(filterClass)) {
+      return false;
+    }
+    
+    // Semester filter
+    if (filterSemester && !courseStr.includes(filterSemester)) {
+      return false;
+    }
+    
+    // Year filter
+    if (filterYear && !courseStr.includes(filterYear)) {
+      return false;
+    }
+    
+    // Status filter
+    if (filterStatus && sub.status !== filterStatus) {
+      return false;
+    }
+    
+    // Team filter
+    if (filterTeam && !sub.teamName.toLowerCase().includes(filterTeam.toLowerCase())) {
+      return false;
+    }
+    
+    return true;
   });
 
   const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
@@ -346,28 +381,56 @@ export function ProfessorView() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Submissions</h3>
               
               {/* Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <select
+                  value={filterClass}
+                  onChange={(e) => setFilterClass(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All classes</option>
+                  <option value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                <select
+                  value={filterSemester}
+                  onChange={(e) => setFilterSemester(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All semesters</option>
+                  <option value="Spring 1">Spring 1</option>
+                  <option value="Spring 2">Spring 2</option>
+                  <option value="Summer 1">Summer 1</option>
+                  <option value="Summer 2">Summer 2</option>
+                  <option value="Fall 1">Fall 1</option>
+                  <option value="Fall 2">Fall 2</option>
+                </select>
+
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All years</option>
+                  {yearOptions.map((yr) => (
+                    <option key={yr} value={yr.toString()}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Filter by submitter (team)..."
+                    placeholder="Filter by team name..."
                     value={filterTeam}
                     onChange={(e) => setFilterTeam(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-                
-                <select
-                  value={filterCourse}
-                  onChange={(e) => setFilterCourse(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All courses</option>
-                  {uniqueCourses.map(course => (
-                    <option key={course} value={course}>{course}</option>
-                  ))}
-                </select>
 
                 <select
                   value={filterStatus}
@@ -381,7 +444,9 @@ export function ProfessorView() {
 
                 <button
                   onClick={() => {
-                    setFilterCourse('');
+                    setFilterClass('');
+                    setFilterSemester('');
+                    setFilterYear('');
                     setFilterStatus('');
                     setFilterTeam('');
                     setSortField(null);
@@ -408,11 +473,29 @@ export function ProfessorView() {
                       </div>
                     </th>
                     <th 
+                      onClick={() => handleSort('authorName')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        Submitted By
+                        <SortIcon field="authorName" />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleSort('submittedDate')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        Date Submitted
+                        <SortIcon field="submittedDate" />
+                      </div>
+                    </th>
+                    <th 
                       onClick={() => handleSort('teamName')}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Submitted by (Team)
+                        Team
                         <SortIcon field="teamName" />
                       </div>
                     </th>
@@ -430,7 +513,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Submission Status
+                        Status
                         <SortIcon field="status" />
                       </div>
                     </th>
@@ -439,7 +522,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Number of Reviews
+                        Reviews
                         <SortIcon field="numReviews" />
                       </div>
                     </th>
@@ -448,7 +531,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Overall Score
+                        Score
                         <SortIcon field="overallScore" />
                       </div>
                     </th>
@@ -463,6 +546,12 @@ export function ProfessorView() {
                     >
                       <td className="px-6 py-4">
                         <p className="font-medium text-gray-900">{submission.projectTitle}</p>
+                      </td>
+                      <td className="px-6 py-4 text-gray-900">
+                        {submission.authorName}
+                      </td>
+                      <td className="px-6 py-4 text-gray-900 text-sm">
+                        {submission.submittedDate}
                       </td>
                       <td className="px-6 py-4 text-gray-900">
                         {submission.teamName}
@@ -613,8 +702,11 @@ export function ProfessorView() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-1">
                   {selectedSubmission.projectTitle}
                 </h3>
+                <p className="text-sm text-gray-600 mb-1">
+                  Submitted by {selectedSubmission.authorName} on {selectedSubmission.submittedDate}
+                </p>
                 <p className="text-sm text-gray-600">
-                  Submitted by: {selectedSubmission.teamName} • {selectedSubmission.courseSemester}
+                  Team: {selectedSubmission.teamName} • {selectedSubmission.courseSemester}
                 </p>
               </div>
               <button
