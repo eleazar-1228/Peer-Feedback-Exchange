@@ -6,7 +6,8 @@ import { SubmissionFlow } from './components/SubmissionFlow';
 import { ReviewFlow } from './components/ReviewFlow';
 import { ProfessorView } from './components/ProfessorView';
 import { SubmissionFeedback } from './components/SubmissionFeedback';
-import { LogOut } from 'lucide-react';
+import { AccountSettings } from './components/AccountSettings';
+import { LogOut, Settings } from 'lucide-react';
 import { supabase } from "./lib/supabaseClient";
 import { useEffect, useMemo, useRef} from "react";
 
@@ -234,6 +235,13 @@ export default function App() {
               </button>
             )}
             <button
+              onClick={() => navigate('/settings')}
+              className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+            <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
             >
@@ -286,6 +294,15 @@ export default function App() {
                 onBack={() => navigate("/students")}
                 submissionTitle={submissionTitleFromState || "Submission"}
               />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <RequireRole allowed={["student", "professor"]}>
+              <AccountSettings onBack={() => navigate(currentRole === "professor" ? "/professor" : "/students")} />
             </RequireRole>
           }
         />

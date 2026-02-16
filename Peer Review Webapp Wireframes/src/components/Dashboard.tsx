@@ -137,20 +137,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     async function loadSubmissions() {
       setSubsLoading(true);
       try {
-        // Combine filters into course string if any are selected
-        let courseFilter = undefined;
-        if (filterClass || filterSemester || filterYear) {
-          const parts = [];
-          if (filterClass) parts.push(filterClass);
-          if (filterSemester) parts.push(filterSemester);
-          if (filterYear) parts.push(filterYear);
-          courseFilter = parts.join(' ');
-        }
-
+        // Don't use course filter in API - we'll filter client-side for better flexibility
         const [mine, all] = await Promise.all([
           getMySubmissions(),
           getAllSubmissionsFiltered({
-            course: courseFilter,
             teamName: filterTeam || undefined,
             status: (filterStatus as "Pending" | "Reviewed") || undefined,
             limit: 200,
