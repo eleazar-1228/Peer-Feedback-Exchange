@@ -87,12 +87,18 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [loading, setLoading] = useState(true);
   const [dbCourses, setDbCourses] = useState<string[]>([]);
 
+  // Generate year options: only current year (no past, no future)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear];
+
 
   
   // All Feedback tab state
   const [allSortField, setAllSortField] = useState<AllSubmissionsSortField | null>(null);
   const [allSortDirection, setAllSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCourse, setFilterCourse] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedAllSubmission, setSelectedAllSubmission] = useState<AllSubmission | null>(null);
@@ -131,10 +137,20 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     async function loadSubmissions() {
       setSubsLoading(true);
       try {
+        // Combine filters into course string if any are selected
+        let courseFilter = undefined;
+        if (filterClass || filterSemester || filterYear) {
+          const parts = [];
+          if (filterClass) parts.push(filterClass);
+          if (filterSemester) parts.push(filterSemester);
+          if (filterYear) parts.push(filterYear);
+          courseFilter = parts.join(' ');
+        }
+
         const [mine, all] = await Promise.all([
           getMySubmissions(),
           getAllSubmissionsFiltered({
-            course: filterCourse || undefined,
+            course: courseFilter,
             teamName: filterTeam || undefined,
             status: (filterStatus as "Pending" | "Reviewed") || undefined,
             limit: 200,
@@ -199,7 +215,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
     // Cleanup interval on unmount or when dependencies change
     return () => clearInterval(pollInterval);
-  }, [filterCourse, filterTeam, filterStatus]);
+  }, [filterClass, filterSemester, filterYear, filterTeam, filterStatus]);
 
 
   useEffect(() => {
@@ -578,7 +594,46 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Submissions</h3>
               
               {/* Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <select
+                  value={filterClass}
+                  onChange={(e) => setFilterClass(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All classes</option>
+                  <option value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                <select
+                  value={filterSemester}
+                  onChange={(e) => setFilterSemester(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All semesters</option>
+                  <option value="Spring 1">Spring 1</option>
+                  <option value="Spring 2">Spring 2</option>
+                  <option value="Summer 1">Summer 1</option>
+                  <option value="Summer 2">Summer 2</option>
+                  <option value="Fall 1">Fall 1</option>
+                  <option value="Fall 2">Fall 2</option>
+                </select>
+
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All years</option>
+                  {yearOptions.map((yr) => (
+                    <option key={yr} value={yr.toString()}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                   <input
@@ -589,17 +644,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-                
-                <select
-                  value={filterCourse}
-                  onChange={(e) => setFilterCourse(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All courses</option>
-                  {dbCourses.map(course => (
-                    <option key={course} value={course}>{course}</option>
-                  ))}
-                </select>
 
                 <select
                   value={filterStatus}
@@ -613,7 +657,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
                 <button
                   onClick={() => {
-                    setFilterCourse('');
+                    setFilterClass('');
+                    setFilterSemester('');
+                    setFilterYear('');
                     setFilterStatus('');
                     setFilterTeam('');
                     setAllSortField(null);

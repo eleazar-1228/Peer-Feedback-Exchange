@@ -20,7 +20,9 @@ interface SubmissionFlowProps {
 
 export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
   const [currentStep, setCurrentStep] = useState(1);
-  const [course, setCourse] = useState('');
+  const [courseClass, setCourseClass] = useState('');
+  const [semester, setSemester] = useState('');
+  const [year, setYear] = useState('');
   const [week, setWeek] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -35,7 +37,9 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
   const [dueDate, setDueDate] = useState<Date>();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [touched, setTouched] = useState({
-    course: false,
+    courseClass: false,
+    semester: false,
+    year: false,
     week: false,
     projectTitle: false,
     projectDocument: false,
@@ -46,6 +50,10 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
 
   const DRAFT_KEY = "submission_draft_v1";
 
+  // Generate year options: only current year (no past, no future)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear];
+
   useEffect(() => {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
@@ -54,7 +62,9 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
       const draft = JSON.parse(raw);
 
       setCurrentStep(draft.currentStep ?? 1);
-      setCourse(draft.course ?? "");
+      setCourseClass(draft.courseClass ?? "");
+      setSemester(draft.semester ?? "");
+      setYear(draft.year ?? "");
       setWeek(draft.week ?? "");
       setProjectTitle(draft.projectTitle ?? "");
       setDescription(draft.description ?? "");
@@ -75,7 +85,9 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
   useEffect(() => {
     const draft = {
       currentStep,
-      course,
+      courseClass,
+      semester,
+      year,
       week,
       projectTitle,
       description,
@@ -88,7 +100,9 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   }, [
     currentStep,
-    course,
+    courseClass,
+    semester,
+    year,
     week,
     projectTitle,
     description,
@@ -121,7 +135,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
   const atLeastOneCategorySelected = Object.values(feedbackCategories).some(v => v);
 
   const isStep1Valid = () => {
-    return course && week && projectTitle && projectTeam;
+    return courseClass && semester && year && week && projectTitle && projectTeam;
   };
 
   const isStep2Valid = () => {
@@ -175,6 +189,9 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
 
       // dueDate is Date | undefined -> convert to YYYY-MM-DD
       const dueDateStr = dueDate!.toISOString().slice(0, 10);
+
+      // Combine class, semester, and year into course string
+      const course = `${courseClass} - ${semester} ${year}`;
 
       //DEBUG
       console.log({ course, week, projectTeam, projectTitle, projectDocument });
@@ -263,20 +280,60 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
           <div className="space-y-5">
             {/* Step 1: Course & Project Info */}
             <div>
-              <Label htmlFor="course" className="text-sm font-medium text-gray-700">
-                Course/class/semester <span className="text-red-500">*</span>
+              <Label className="text-sm font-medium text-gray-700">
+                Class <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="course"
-                type="text"
-                placeholder="MET CS633 – Spring 1, 2026"
-                value={course}
-                onChange={(e) => setCourse(e.target.value)}
-                onBlur={() => handleBlur('course')}
-                className={`mt-1.5 ${getFieldValidationClass(!!course, touched.course)}`}
-                required
-              />
-              <p className="mt-1 text-xs text-gray-500">Enter course code, name, and semester.</p>
+              <Select value={courseClass} onValueChange={(value) => { setCourseClass(value); handleBlur('courseClass'); }}>
+                <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!courseClass, touched.courseClass)}`}>
+                  <SelectValue placeholder="Select class..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-gray-500">Select your course.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">
+                  Semester <span className="text-red-500">*</span>
+                </Label>
+                <Select value={semester} onValueChange={(value) => { setSemester(value); handleBlur('semester'); }}>
+                  <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!semester, touched.semester)}`}>
+                    <SelectValue placeholder="Select semester..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Spring 1">Spring 1</SelectItem>
+                    <SelectItem value="Spring 2">Spring 2</SelectItem>
+                    <SelectItem value="Summer 1">Summer 1</SelectItem>
+                    <SelectItem value="Summer 2">Summer 2</SelectItem>
+                    <SelectItem value="Fall 1">Fall 1</SelectItem>
+                    <SelectItem value="Fall 2">Fall 2</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-gray-500">Select the semester.</p>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium text-gray-700">
+                  Year <span className="text-red-500">*</span>
+                </Label>
+                <Select value={year} onValueChange={(value) => { setYear(value); handleBlur('year'); }}>
+                  <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!year, touched.year)}`}>
+                    <SelectValue placeholder="Select year..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yearOptions.map((yr) => (
+                      <SelectItem key={yr} value={yr.toString()}>
+                        {yr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-gray-500">Select the year.</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
