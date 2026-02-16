@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
-import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Users, Award } from 'lucide-react';
+import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Award } from 'lucide-react';
 import { FeedbackDisplay } from './FeedbackDisplay';
 import { getAllSubmissionsFiltered, getDistinctCourses, type SubmissionRow } from '../lib/submissionService';
 import { getSubmittedReviewsForSubmission, type ReviewDisplayRow } from '../lib/reviewService';
+import {
+  getTopProjectsByReviews,
+  getTopCoursesByReviews,
+  getTopReviewers,
+  getSubmissionReviewStats,
+} from '../lib/analyticsService';
 
 type SubmissionStatus = 'Pending' | 'Reviewed';
 
@@ -45,29 +51,41 @@ export function ProfessorView() {
   const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
-  // Load submissions from database
+  // Analytics (Key Insights) - real data from DB
+  const [topProjectsByReviews, setTopProjectsByReviews] = useState<{ id: string; projectTitle: string; course: string; teamName: string; reviewCount: number }[]>([]);
+  const [topCoursesByReviews, setTopCoursesByReviews] = useState<{ course: string; reviewCount: number }[]>([]);
+  const [topReviewers, setTopReviewers] = useState<{ reviewerId: string; reviewerName: string; reviewCount: number }[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Load submissions from database with review stats (numReviews, overallScore)
   useEffect(() => {
     async function loadSubmissions() {
       setLoading(true);
       try {
-        const data = await getAllSubmissionsFiltered({
-          course: filterCourse || undefined,
-          teamName: filterTeam || undefined,
-          status: (filterStatus as "Pending" | "Reviewed") || undefined,
-          limit: 200,
-          offset: 0,
-        });
+        const [data, stats] = await Promise.all([
+          getAllSubmissionsFiltered({
+            course: filterCourse || undefined,
+            teamName: filterTeam || undefined,
+            status: (filterStatus as "Pending" | "Reviewed") || undefined,
+            limit: 200,
+            offset: 0,
+          }),
+          getSubmissionReviewStats(),
+        ]);
 
         setSubmissions(
-          data.map((s) => ({
-            id: s.id,
-            projectTitle: s.project_title,
-            teamName: s.project_team,
-            courseSemester: s.course,
-            status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: 0, // TODO: Calculate from reviews
-            overallScore: null, // TODO: Calculate from reviews
-          }))
+          data.map((s) => {
+            const st = stats.get(s.id);
+            return {
+              id: s.id,
+              projectTitle: s.project_title,
+              teamName: s.project_team,
+              courseSemester: s.course,
+              status: s.status === "pending" ? "Pending" : "Reviewed",
+              numReviews: st?.reviewCount ?? 0,
+              overallScore: st?.avgScore ?? null,
+            };
+          })
         );
       } catch (e) {
         console.error("Failed to load submissions:", e);
@@ -78,6 +96,31 @@ export function ProfessorView() {
 
     loadSubmissions();
   }, [filterCourse, filterTeam, filterStatus]);
+
+  // Load analytics when Analytics tab is active
+  useEffect(() => {
+    if (activeTab !== "analytics") return;
+
+    async function loadAnalytics() {
+      setAnalyticsLoading(true);
+      try {
+        const [projects, courses, reviewers] = await Promise.all([
+          getTopProjectsByReviews(5),
+          getTopCoursesByReviews(5),
+          getTopReviewers(3),
+        ]);
+        setTopProjectsByReviews(projects);
+        setTopCoursesByReviews(courses);
+        setTopReviewers(reviewers);
+      } catch (e) {
+        console.error("Failed to load analytics:", e);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    }
+
+    loadAnalytics();
+  }, [activeTab]);
 
   // Load courses
   useEffect(() => {
@@ -169,31 +212,6 @@ export function ProfessorView() {
   // Get unique courses and teams for filter from REAL data
   const uniqueCourses = dbCourses;
   const uniqueTeams = Array.from(new Set(submissions.map(s => s.teamName))).sort();
-
-  // Calculate analytics data
-  // Top 5 Projects with Highest Number of Reviews
-  const topProjectsByReviews = [...submissions]
-    .sort((a, b) => b.numReviews - a.numReviews)
-    .slice(0, 5);
-
-  // Top 5 Courses/Semesters by Total Reviews
-  const courseReviewCounts = submissions.reduce((acc, sub) => {
-    acc[sub.courseSemester] = (acc[sub.courseSemester] || 0) + sub.numReviews;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const topCoursesByReviews = Object.entries(courseReviewCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
-  // Top 3 Students Who Provided Most Feedback (mock data)
-  const studentFeedbackCounts = [
-    { name: 'Sarah Chen', count: 12 },
-    { name: 'Michael Rodriguez', count: 10 },
-    { name: 'Alex Kim', count: 9 },
-    { name: 'Jordan Lee', count: 8 },
-    { name: 'Taylor Brown', count: 7 },
-  ].slice(0, 3);
 
   // Filter and sort submissions
   const filteredSubmissions = submissions.filter(sub => {
@@ -494,7 +512,7 @@ export function ProfessorView() {
             <h3 className="text-2xl font-semibold text-gray-900 mb-6">Key Insights</h3>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Top Projects by Reviews */}
+              {/* Top Projects by Reviews - real data from DB */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -503,21 +521,27 @@ export function ProfessorView() {
                   <h4 className="font-semibold text-gray-900">Top 5 Projects by Reviews</h4>
                 </div>
                 <div className="space-y-3">
-                  {topProjectsByReviews.map((project, idx) => (
-                    <div key={project.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm text-gray-900 font-medium truncate">{project.projectTitle}</p>
+                  {analyticsLoading ? (
+                    <p className="text-sm text-gray-500 py-4">Loading...</p>
+                  ) : topProjectsByReviews.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4">No projects with reviews yet.</p>
+                  ) : (
+                    topProjectsByReviews.map((project, idx) => (
+                      <div key={project.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-gray-900 font-medium truncate">{project.projectTitle}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{project.reviewCount}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">{project.numReviews}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Top Courses by Total Reviews */}
+              {/* Top Courses by Reviews - real data from DB */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-green-100 rounded-lg">
@@ -526,21 +550,27 @@ export function ProfessorView() {
                   <h4 className="font-semibold text-gray-900">Top 5 Courses by Reviews</h4>
                 </div>
                 <div className="space-y-3">
-                  {topCoursesByReviews.map(([course, count], idx) => (
-                    <div key={course} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm text-gray-900 font-medium truncate">{course}</p>
+                  {analyticsLoading ? (
+                    <p className="text-sm text-gray-500 py-4">Loading...</p>
+                  ) : topCoursesByReviews.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4">No course reviews yet.</p>
+                  ) : (
+                    topCoursesByReviews.map((item, idx) => (
+                      <div key={item.course} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-gray-900 font-medium truncate">{item.course}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{item.reviewCount}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">{count}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Top Students by Feedback Provided */}
+              {/* Top Reviewers - real data from DB */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-purple-100 rounded-lg">
@@ -549,17 +579,23 @@ export function ProfessorView() {
                   <h4 className="font-semibold text-gray-900">Top 3 Reviewers</h4>
                 </div>
                 <div className="space-y-3">
-                  {studentFeedbackCounts.map((student, idx) => (
-                    <div key={student.name} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm text-gray-900 font-medium">{student.name}</p>
+                  {analyticsLoading ? (
+                    <p className="text-sm text-gray-500 py-4">Loading...</p>
+                  ) : topReviewers.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4">No reviewers yet.</p>
+                  ) : (
+                    topReviewers.map((reviewer, idx) => (
+                      <div key={reviewer.reviewerId} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-gray-900 font-medium">{reviewer.reviewerName}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{reviewer.reviewCount}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">{student.count}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
