@@ -14,7 +14,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [email, setEmail] = useState('');
   const [course, setCourse] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -26,7 +25,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
           setFirstName(profile.first_name as string || '');
           setLastName(profile.last_name as string || '');
           setStudentId(profile.student_id as string || '');
-          setEmail(profile.email as string || '');
           setCourse(profile.course as string || '');
         }
       } catch (e) {
@@ -46,7 +44,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
         first_name: firstName.trim() || null,
         last_name: lastName.trim() || null,
         student_id: studentId.trim() || null,
-        email: email.trim() || null,
         course: course.trim() || null,
       });
       setSuccessMessage('Profile updated successfully!');
@@ -145,20 +142,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="email" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
             </div>
           </div>
 

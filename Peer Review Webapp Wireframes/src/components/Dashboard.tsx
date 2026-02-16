@@ -174,6 +174,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
           })
         );
 
+        console.log("All submissions with authors:", all);
+        
         setAllDbSubmissions(
           all.map((s) => {
             const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
@@ -182,11 +184,13 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             
             // Get author name from profile
             const author = s.author;
+            console.log("Submission:", s.id, "Author:", author);
             let authorName = "Unknown";
             if (author) {
               const fullName = `${author.first_name ?? ""} ${author.last_name ?? ""}`.trim();
-              authorName = fullName || author.student_id || author.email || "Unknown";
+              authorName = fullName || author.student_id || "Unknown";
             }
+            console.log("Final author name:", authorName);
             
             return {
               id: s.id,

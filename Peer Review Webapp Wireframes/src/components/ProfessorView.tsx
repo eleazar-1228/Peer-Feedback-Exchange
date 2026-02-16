@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
-import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Users, Award } from 'lucide-react';
+import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Award } from 'lucide-react';
 import { FeedbackDisplay } from './FeedbackDisplay';
-import { getAllSubmissionsFiltered, getDistinctCourses, type SubmissionRow } from '../lib/submissionService';
+import { getAllSubmissionsFiltered, type SubmissionRow } from '../lib/submissionService';
 import { getSubmittedReviewsForSubmission, type ReviewDisplayRow } from '../lib/reviewService';
+import {
+  getTopProjectsByReviews,
+  getTopCoursesByReviews,
+  getTopReviewers,
+  getSubmissionReviewStats,
+} from '../lib/analyticsService';
 
 type SubmissionStatus = 'Pending' | 'Reviewed';
 
@@ -14,6 +20,8 @@ interface Submission {
   status: SubmissionStatus;
   numReviews: number;
   overallScore: number | null;
+  authorName: string;
+  submittedDate: string;
 }
 
 interface Review {
@@ -33,41 +41,78 @@ export function ProfessorView() {
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics'>('overview');
   const [sortField, setSortField] = useState<keyof Submission | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCourse, setFilterCourse] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   
+  // Dynamic year options (only current year)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear];
+  
   // Real data from Supabase
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [dbCourses, setDbCourses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
-  // Load submissions from database
+  // Analytics (Key Insights) - real data from DB
+  const [topProjectsByReviews, setTopProjectsByReviews] = useState<{ id: string; projectTitle: string; course: string; teamName: string; reviewCount: number }[]>([]);
+  const [topCoursesByReviews, setTopCoursesByReviews] = useState<{ course: string; reviewCount: number }[]>([]);
+  const [topReviewers, setTopReviewers] = useState<{ reviewerId: string; reviewerName: string; reviewCount: number }[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Load submissions from database with review stats (numReviews, overallScore)
   useEffect(() => {
     async function loadSubmissions() {
       setLoading(true);
       try {
-        const data = await getAllSubmissionsFiltered({
-          course: filterCourse || undefined,
-          teamName: filterTeam || undefined,
-          status: (filterStatus as "Pending" | "Reviewed") || undefined,
-          limit: 200,
-          offset: 0,
-        });
+        const [data, stats] = await Promise.all([
+          getAllSubmissionsFiltered({
+            teamName: filterTeam || undefined,
+            limit: 200,
+            offset: 0,
+          }),
+          getSubmissionReviewStats(),
+        ]);
+
+        console.log("Professor view - loaded submissions:", data);
 
         setSubmissions(
-          data.map((s) => ({
-            id: s.id,
-            projectTitle: s.project_title,
-            teamName: s.project_team,
-            courseSemester: s.course,
-            status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: 0, // TODO: Calculate from reviews
-            overallScore: null, // TODO: Calculate from reviews
-          }))
+          data.map((s) => {
+            const st = stats.get(s.id);
+            
+            // Get author name from profile
+            const author = s.author;
+            let authorName = "Unknown";
+            if (author) {
+              const fullName = `${author.first_name ?? ""} ${author.last_name ?? ""}`.trim();
+              authorName = fullName || author.student_id || "Unknown";
+            }
+            
+            // Format submission date
+            const submittedDate = s.created_at
+              ? new Date(s.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "Unknown";
+            
+            return {
+              id: s.id,
+              projectTitle: s.project_title,
+              teamName: s.project_team,
+              courseSemester: s.course,
+              status: st && st.reviewCount > 0 ? "Reviewed" : "Pending",
+              numReviews: st?.reviewCount ?? 0,
+              overallScore: st?.avgScore ?? null,
+              authorName,
+              submittedDate,
+            };
+          })
         );
       } catch (e) {
         console.error("Failed to load submissions:", e);
@@ -77,20 +122,33 @@ export function ProfessorView() {
     }
 
     loadSubmissions();
-  }, [filterCourse, filterTeam, filterStatus]);
+  }, [filterTeam]);
 
-  // Load courses
+  // Load analytics when Analytics tab is active
   useEffect(() => {
-    async function loadCourses() {
+    if (activeTab !== "analytics") return;
+
+    async function loadAnalytics() {
+      setAnalyticsLoading(true);
       try {
-        const courses = await getDistinctCourses();
-        setDbCourses(courses);
+        const [projects, courses, reviewers] = await Promise.all([
+          getTopProjectsByReviews(5),
+          getTopCoursesByReviews(5),
+          getTopReviewers(3),
+        ]);
+        setTopProjectsByReviews(projects);
+        setTopCoursesByReviews(courses);
+        setTopReviewers(reviewers);
       } catch (e) {
-        console.error("Failed to load course list:", e);
+        console.error("Failed to load analytics:", e);
+      } finally {
+        setAnalyticsLoading(false);
       }
     }
-    loadCourses();
-  }, []);
+
+    loadAnalytics();
+  }, [activeTab]);
+
 
   // Load reviews when submission is selected
   useEffect(() => {
@@ -163,44 +221,39 @@ export function ProfessorView() {
 
   // Calculate stats from REAL data
   const totalSubmissions = submissions.length;
-  const reviewsPending = submissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
+  const reviewsPending = submissions.filter(sub => sub.status === "Pending").length;
   const completedReviews = submissions.reduce((acc, sub) => acc + sub.numReviews, 0);
 
-  // Get unique courses and teams for filter from REAL data
-  const uniqueCourses = dbCourses;
-  const uniqueTeams = Array.from(new Set(submissions.map(s => s.teamName))).sort();
-
-  // Calculate analytics data
-  // Top 5 Projects with Highest Number of Reviews
-  const topProjectsByReviews = [...submissions]
-    .sort((a, b) => b.numReviews - a.numReviews)
-    .slice(0, 5);
-
-  // Top 5 Courses/Semesters by Total Reviews
-  const courseReviewCounts = submissions.reduce((acc, sub) => {
-    acc[sub.courseSemester] = (acc[sub.courseSemester] || 0) + sub.numReviews;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const topCoursesByReviews = Object.entries(courseReviewCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
-  // Top 3 Students Who Provided Most Feedback (mock data)
-  const studentFeedbackCounts = [
-    { name: 'Sarah Chen', count: 12 },
-    { name: 'Michael Rodriguez', count: 10 },
-    { name: 'Alex Kim', count: 9 },
-    { name: 'Jordan Lee', count: 8 },
-    { name: 'Taylor Brown', count: 7 },
-  ].slice(0, 3);
-
-  // Filter and sort submissions
+  // Filter and sort submissions (client-side filtering for class, semester, year)
   const filteredSubmissions = submissions.filter(sub => {
-    const matchesCourse = !filterCourse || sub.courseSemester === filterCourse;
-    const matchesStatus = !filterStatus || sub.status === filterStatus;
-    const matchesTeam = !filterTeam || sub.teamName.toLowerCase().includes(filterTeam.toLowerCase());
-    return matchesCourse && matchesStatus && matchesTeam;
+    const courseStr = sub.courseSemester || "";
+    
+    // Class filter
+    if (filterClass && !courseStr.includes(filterClass)) {
+      return false;
+    }
+    
+    // Semester filter
+    if (filterSemester && !courseStr.includes(filterSemester)) {
+      return false;
+    }
+    
+    // Year filter
+    if (filterYear && !courseStr.includes(filterYear)) {
+      return false;
+    }
+    
+    // Status filter
+    if (filterStatus && sub.status !== filterStatus) {
+      return false;
+    }
+    
+    // Team filter
+    if (filterTeam && !sub.teamName.toLowerCase().includes(filterTeam.toLowerCase())) {
+      return false;
+    }
+    
+    return true;
   });
 
   const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
@@ -328,28 +381,56 @@ export function ProfessorView() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Submissions</h3>
               
               {/* Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <select
+                  value={filterClass}
+                  onChange={(e) => setFilterClass(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All classes</option>
+                  <option value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                <select
+                  value={filterSemester}
+                  onChange={(e) => setFilterSemester(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All semesters</option>
+                  <option value="Spring 1">Spring 1</option>
+                  <option value="Spring 2">Spring 2</option>
+                  <option value="Summer 1">Summer 1</option>
+                  <option value="Summer 2">Summer 2</option>
+                  <option value="Fall 1">Fall 1</option>
+                  <option value="Fall 2">Fall 2</option>
+                </select>
+
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All years</option>
+                  {yearOptions.map((yr) => (
+                    <option key={yr} value={yr.toString()}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Filter by submitter (team)..."
+                    placeholder="Filter by team name..."
                     value={filterTeam}
                     onChange={(e) => setFilterTeam(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-                
-                <select
-                  value={filterCourse}
-                  onChange={(e) => setFilterCourse(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All courses</option>
-                  {uniqueCourses.map(course => (
-                    <option key={course} value={course}>{course}</option>
-                  ))}
-                </select>
 
                 <select
                   value={filterStatus}
@@ -363,7 +444,9 @@ export function ProfessorView() {
 
                 <button
                   onClick={() => {
-                    setFilterCourse('');
+                    setFilterClass('');
+                    setFilterSemester('');
+                    setFilterYear('');
                     setFilterStatus('');
                     setFilterTeam('');
                     setSortField(null);
@@ -390,11 +473,29 @@ export function ProfessorView() {
                       </div>
                     </th>
                     <th 
+                      onClick={() => handleSort('authorName')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        Submitted By
+                        <SortIcon field="authorName" />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleSort('submittedDate')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        Date Submitted
+                        <SortIcon field="submittedDate" />
+                      </div>
+                    </th>
+                    <th 
                       onClick={() => handleSort('teamName')}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Submitted by (Team)
+                        Team
                         <SortIcon field="teamName" />
                       </div>
                     </th>
@@ -412,7 +513,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Submission Status
+                        Status
                         <SortIcon field="status" />
                       </div>
                     </th>
@@ -421,7 +522,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Number of Reviews
+                        Reviews
                         <SortIcon field="numReviews" />
                       </div>
                     </th>
@@ -430,7 +531,7 @@ export function ProfessorView() {
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
                       <div className="flex items-center gap-2">
-                        Overall Score
+                        Score
                         <SortIcon field="overallScore" />
                       </div>
                     </th>
@@ -445,6 +546,12 @@ export function ProfessorView() {
                     >
                       <td className="px-6 py-4">
                         <p className="font-medium text-gray-900">{submission.projectTitle}</p>
+                      </td>
+                      <td className="px-6 py-4 text-gray-900">
+                        {submission.authorName}
+                      </td>
+                      <td className="px-6 py-4 text-gray-900 text-sm">
+                        {submission.submittedDate}
                       </td>
                       <td className="px-6 py-4 text-gray-900">
                         {submission.teamName}
@@ -494,7 +601,7 @@ export function ProfessorView() {
             <h3 className="text-2xl font-semibold text-gray-900 mb-6">Key Insights</h3>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Top Projects by Reviews */}
+              {/* Top Projects by Reviews - real data from DB */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -503,21 +610,27 @@ export function ProfessorView() {
                   <h4 className="font-semibold text-gray-900">Top 5 Projects by Reviews</h4>
                 </div>
                 <div className="space-y-3">
-                  {topProjectsByReviews.map((project, idx) => (
-                    <div key={project.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm text-gray-900 font-medium truncate">{project.projectTitle}</p>
+                  {analyticsLoading ? (
+                    <p className="text-sm text-gray-500 py-4">Loading...</p>
+                  ) : topProjectsByReviews.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4">No projects with reviews yet.</p>
+                  ) : (
+                    topProjectsByReviews.map((project, idx) => (
+                      <div key={project.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-gray-900 font-medium truncate">{project.projectTitle}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{project.reviewCount}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">{project.numReviews}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Top Courses by Total Reviews */}
+              {/* Top Courses by Reviews - real data from DB */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-green-100 rounded-lg">
@@ -526,21 +639,27 @@ export function ProfessorView() {
                   <h4 className="font-semibold text-gray-900">Top 5 Courses by Reviews</h4>
                 </div>
                 <div className="space-y-3">
-                  {topCoursesByReviews.map(([course, count], idx) => (
-                    <div key={course} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm text-gray-900 font-medium truncate">{course}</p>
+                  {analyticsLoading ? (
+                    <p className="text-sm text-gray-500 py-4">Loading...</p>
+                  ) : topCoursesByReviews.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4">No course reviews yet.</p>
+                  ) : (
+                    topCoursesByReviews.map((item, idx) => (
+                      <div key={item.course} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-gray-900 font-medium truncate">{item.course}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{item.reviewCount}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">{count}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Top Students by Feedback Provided */}
+              {/* Top Reviewers - real data from DB */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-purple-100 rounded-lg">
@@ -549,17 +668,23 @@ export function ProfessorView() {
                   <h4 className="font-semibold text-gray-900">Top 3 Reviewers</h4>
                 </div>
                 <div className="space-y-3">
-                  {studentFeedbackCounts.map((student, idx) => (
-                    <div key={student.name} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm text-gray-900 font-medium">{student.name}</p>
+                  {analyticsLoading ? (
+                    <p className="text-sm text-gray-500 py-4">Loading...</p>
+                  ) : topReviewers.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4">No reviewers yet.</p>
+                  ) : (
+                    topReviewers.map((reviewer, idx) => (
+                      <div key={reviewer.reviewerId} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
+                            {idx + 1}
+                          </span>
+                          <p className="text-sm text-gray-900 font-medium">{reviewer.reviewerName}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{reviewer.reviewCount}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">{student.count}</span>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -577,8 +702,11 @@ export function ProfessorView() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-1">
                   {selectedSubmission.projectTitle}
                 </h3>
+                <p className="text-sm text-gray-600 mb-1">
+                  Submitted by {selectedSubmission.authorName} on {selectedSubmission.submittedDate}
+                </p>
                 <p className="text-sm text-gray-600">
-                  Submitted by: {selectedSubmission.teamName} • {selectedSubmission.courseSemester}
+                  Team: {selectedSubmission.teamName} • {selectedSubmission.courseSemester}
                 </p>
               </div>
               <button
