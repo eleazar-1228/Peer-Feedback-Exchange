@@ -356,7 +356,16 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const uniqueTeams = Array.from(new Set(allDbSubmissions.map(s => s.teamName))).sort();
   // Filter and sort all submissions
     const filteredAllSubmissions = allDbSubmissions.filter(sub => {
-    const matchesCourse = !filterCourse || sub.courseSemester === filterCourse;
+    // Check if course matches any of the selected filters (class, semester, year)
+    let matchesCourse = true;
+    if (filterClass || filterSemester || filterYear) {
+      const courseStr = sub.courseSemester.toLowerCase();
+      matchesCourse = 
+        (!filterClass || courseStr.includes(filterClass.toLowerCase())) &&
+        (!filterSemester || courseStr.includes(filterSemester.toLowerCase())) &&
+        (!filterYear || courseStr.includes(filterYear));
+    }
+    
     const matchesStatus = !filterStatus || sub.status === filterStatus;
     const matchesTeam = !filterTeam || sub.teamName.toLowerCase().includes(filterTeam.toLowerCase());
     return matchesCourse && matchesStatus && matchesTeam;
