@@ -48,20 +48,27 @@ export default function App() {
         }
 
         const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('Auth state change:', event, 'has session:', !!session);
           const loggedIn = !!session;
           
           // Only reload role on actual auth changes, not token refreshes
           if (event === 'SIGNED_IN') {
+            console.log('SIGNED_IN event - loading role');
             setIsLoggedIn(true);
             await loadRoleFromProfile();
           } else if (event === 'SIGNED_OUT') {
+            console.log('SIGNED_OUT event');
             setIsLoggedIn(false);
             setCurrentRole(null);
           } else if (event === 'TOKEN_REFRESHED') {
             // Session refreshed, but we're already logged in - do nothing
-            console.log('Token refreshed');
+            console.log('TOKEN_REFRESHED event - maintaining current state');
+          } else if (event === 'INITIAL_SESSION') {
+            // Initial session check - do nothing, already handled above
+            console.log('INITIAL_SESSION event - skipping');
           } else {
             // For other events, just update login state
+            console.log('Other auth event:', event);
             setIsLoggedIn(loggedIn);
           }
         });
@@ -91,7 +98,10 @@ export default function App() {
     setRoleLoading(true);
     try {
       const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      console.log("loadRoleFromProfile - user:", user?.id, "error:", userErr);
+      
       if (userErr || !user) {
+        console.log("No user found, setting role to null");
         setCurrentRole(null);
         return;
       }
@@ -100,14 +110,27 @@ export default function App() {
         .from("profiles")
         .select("role")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (profErr || !profile?.role) {
+      console.log("loadRoleFromProfile - profile:", profile, "error:", profErr);
+
+      if (profErr) {
+        console.error("Profile fetch error:", profErr);
         setCurrentRole("student"); // safe fallback
         return;
       }
 
+      if (!profile?.role) {
+        console.warn("No profile found for user, using fallback role");
+        setCurrentRole("student"); // safe fallback
+        return;
+      }
+
+      console.log("Setting role to:", profile.role);
       setCurrentRole(profile.role as UserRole);
+    } catch (e) {
+      console.error("loadRoleFromProfile failed:", e);
+      setCurrentRole("student"); // safe fallback
     } finally {
       setRoleLoading(false);
     }
