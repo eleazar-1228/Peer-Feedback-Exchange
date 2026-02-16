@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, CheckCircle, Clock, Search, ChevronUp, ChevronDown, X, TrendingUp, Award } from 'lucide-react';
 import { FeedbackDisplay } from './FeedbackDisplay';
+import { getMyProfile } from '../lib/profileService';
 import { getAllSubmissionsFiltered, type SubmissionRow } from '../lib/submissionService';
 import { getSubmittedReviewsForSubmission, type ReviewDisplayRow } from '../lib/reviewService';
 import {
@@ -63,6 +64,22 @@ export function ProfessorView() {
   const [topCoursesByReviews, setTopCoursesByReviews] = useState<{ course: string; reviewCount: number }[]>([]);
   const [topReviewers, setTopReviewers] = useState<{ reviewerId: string; reviewerName: string; reviewCount: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Professor profile for welcome message
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+
+  // Load professor profile for welcome message
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const p = await getMyProfile();
+        setProfile(p);
+      } catch (e) {
+        console.error("Failed to load professor profile:", e);
+      }
+    }
+    loadProfile();
+  }, []);
 
   // Load submissions from database with review stats (numReviews, overallScore)
   useEffect(() => {
@@ -310,7 +327,9 @@ export function ProfessorView() {
     <div className="max-w-7xl mx-auto p-8">
       {/* Header */}
       <div className="mb-8">
-        <h2 className="text-3xl font-semibold text-gray-900 mb-2">Professor Dashboard</h2>
+        <h2 className="text-3xl font-semibold text-gray-900 mb-2">
+          Welcome Professor{profile?.last_name ? ` ${profile.last_name}` : ""} 👋
+        </h2>
         <p className="text-gray-600">Monitor peer review progress and view submission feedback</p>
       </div>
 
