@@ -10,8 +10,14 @@ import {
   getAllSubmissionsFiltered,
   getDistinctCourses
 } from "../lib/submissionService";
-import { getSubmittedReviewsForSubmission, getReviewStatsForSubmissions, getMyCompletedReviewsCount } from "../lib/reviewService";
-import type { ReviewDisplayRow } from "../lib/reviewService";
+import { 
+  getSubmittedReviewsForSubmission, 
+  getReviewStatsForSubmissions, 
+  getMyCompletedReviewsCount,
+  getMyFeedbackReceived,
+  getMyFeedbackProvided
+} from "../lib/reviewService";
+import type { ReviewDisplayRow, FeedbackReceivedItem, FeedbackProvidedItem } from "../lib/reviewService";
 
 
 
@@ -99,6 +105,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [reviewPage, setReviewPage] = useState(0);
   const [selectedReviewForDetails, setSelectedReviewForDetails] = useState<ReviewDisplayRow | null>(null);
   const [myCompletedReviewsCount, setMyCompletedReviewsCount] = useState(0);
+  const [feedbackReceived, setFeedbackReceived] = useState<FeedbackReceivedItem[]>([]);
+  const [feedbackProvided, setFeedbackProvided] = useState<FeedbackProvidedItem[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
 
 
@@ -134,7 +143,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         ]);
 
         // Get review stats (counts and average scores) for all submissions
-        const allSubmissionIds = [...mine.map(s => s.id), ...all.map(s => s.id)];
+        const allSubmissionIds = [...(mine || []).map(s => s.id), ...(all || []).map(s => s.id)];
         const reviewStats = await getReviewStatsForSubmissions(allSubmissionIds);
 
         setMyDbSubmissions(
@@ -209,6 +218,27 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     }
     loadMyReviewsCount();
   }, []);
+
+  useEffect(() => {
+    async function loadFeedbackDetails() {
+      if (activeTab !== 'feedback') return;
+      
+      setFeedbackLoading(true);
+      try {
+        const [received, provided] = await Promise.all([
+          getMyFeedbackReceived(),
+          getMyFeedbackProvided(),
+        ]);
+        setFeedbackReceived(received);
+        setFeedbackProvided(provided);
+      } catch (e) {
+        console.error("Failed to load feedback details:", e);
+      } finally {
+        setFeedbackLoading(false);
+      }
+    }
+    loadFeedbackDetails();
+  }, [activeTab]);
 
 
   useEffect(() => {
@@ -833,18 +863,139 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         </div>
       )}
 
-      {/* Feedback Tab - TEMPORARILY DISABLED (uses mock data) */}
+      {/* Feedback Tab */}
       {activeTab === 'feedback' && (
-        <div className="bg-white rounded-lg border border-gray-200 p-8">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Feedback Details Coming Soon</h3>
-            <p className="text-gray-600 mb-4">
-              This feature will show detailed feedback you've received and provided once reviews are implemented.
-            </p>
-            <p className="text-sm text-gray-500">
-              For now, you can view all submissions in the "All Feedback" tab and your submissions in the "My Feedback Overview" tab.
-            </p>
-          </div>
+        <div>
+          {feedbackLoading ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+              <p className="text-gray-600">Loading feedback...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Feedback Received Section */}
+              <div className="bg-white rounded-lg border-2 border-green-200 shadow-sm">
+                <div className="bg-green-50 p-6 border-b border-green-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <FileInput className="w-6 h-6 text-green-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Feedback Received</h3>
+                      <p className="text-sm text-gray-600">Reviews on your submitted work</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+                  {feedbackReceived.length === 0 ? (
+                    <div className="p-6 text-center text-gray-500">
+                      No submissions yet
+                    </div>
+                  ) : (
+                    feedbackReceived.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          const submission = myDbSubmissions.find(s => s.id === item.id);
+                          if (submission) setSelectedSubmissionForDetails(submission);
+                        }}
+                        className={`p-5 hover:bg-gray-50 transition-colors ${
+                          item.status === 'Feedback Received' ? 'cursor-pointer' : 'cursor-default opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 text-base pr-2">{item.projectTitle}</h4>
+                          <Badge 
+                            variant={item.status === 'Feedback Received' ? 'default' : 'secondary'}
+                            className={item.status === 'Feedback Received' ? 'bg-green-100 text-green-800 border-green-300' : ''}
+                          >
+                            {item.status}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <BookOpen className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{item.course}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <ClipboardList className="w-4 h-4 flex-shrink-0" />
+                            <span>{item.week}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>Submitted: {item.submittedDate}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Star className="w-4 h-4 flex-shrink-0 text-yellow-500" />
+                            <span>{item.numReviews} review{item.numReviews !== 1 ? 's' : ''}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-green-700 bg-green-50 inline-block px-2 py-1 rounded">
+                            You are the Author
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Feedback Provided Section */}
+              <div className="bg-white rounded-lg border-2 border-purple-200 shadow-sm">
+                <div className="bg-purple-50 p-6 border-b border-purple-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-purple-100 rounded-lg">
+                      <ClipboardList className="w-6 h-6 text-purple-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Feedback Provided</h3>
+                      <p className="text-sm text-gray-600">Reviews you submitted for peers</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+                  {feedbackProvided.length === 0 ? (
+                    <div className="p-6 text-center text-gray-500">
+                      No reviews submitted yet
+                    </div>
+                  ) : (
+                    feedbackProvided.map((item) => (
+                      <div
+                        key={item.reviewId}
+                        className="p-5 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 text-base pr-2">{item.projectTitle}</h4>
+                          <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-300">
+                            {item.status}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <BookOpen className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{item.course}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <ClipboardList className="w-4 h-4 flex-shrink-0" />
+                            <span>{item.week}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>Reviewed: {item.reviewedDate}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-purple-700 bg-purple-50 inline-block px-2 py-1 rounded">
+                            You are the Reviewer
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

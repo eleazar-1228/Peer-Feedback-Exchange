@@ -73,6 +73,28 @@ export default function App() {
     };
   }, []);
 
+  // Re-check session when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isLoggedIn) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (!data.session) {
+            // Session expired, log out
+            setIsLoggedIn(false);
+            setCurrentRole(null);
+            navigate('/login');
+          }
+        } catch (e) {
+          console.error("Session check failed:", e);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isLoggedIn, navigate]);
+
 
 
 
