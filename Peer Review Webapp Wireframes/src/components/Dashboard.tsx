@@ -191,6 +191,14 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     }
 
     loadSubmissions();
+
+    // Poll for updates every 30 seconds
+    const pollInterval = setInterval(() => {
+      loadSubmissions();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount or when dependencies change
+    return () => clearInterval(pollInterval);
   }, [filterCourse, filterTeam, filterStatus]);
 
 
@@ -216,7 +224,15 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         console.error("Failed to load my reviews count:", e);
       }
     }
+    
     loadMyReviewsCount();
+
+    // Poll for updates every 30 seconds
+    const pollInterval = setInterval(() => {
+      loadMyReviewsCount();
+    }, 30000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   useEffect(() => {
@@ -237,7 +253,20 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         setFeedbackLoading(false);
       }
     }
+    
     loadFeedbackDetails();
+
+    // Poll for updates every 30 seconds when on feedback tab
+    let pollInterval: NodeJS.Timeout | null = null;
+    if (activeTab === 'feedback') {
+      pollInterval = setInterval(() => {
+        loadFeedbackDetails();
+      }, 30000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [activeTab]);
 
 

@@ -46,14 +46,22 @@ export default function App() {
           await loadRoleFromProfile();
         }
 
-        const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
           const loggedIn = !!session;
-          setIsLoggedIn(loggedIn);
-
-          if (loggedIn) {
+          
+          // Only reload role on actual auth changes, not token refreshes
+          if (event === 'SIGNED_IN') {
+            setIsLoggedIn(true);
             await loadRoleFromProfile();
-          } else {
+          } else if (event === 'SIGNED_OUT') {
+            setIsLoggedIn(false);
             setCurrentRole(null);
+          } else if (event === 'TOKEN_REFRESHED') {
+            // Session refreshed, but we're already logged in - do nothing
+            console.log('Token refreshed');
+          } else {
+            // For other events, just update login state
+            setIsLoggedIn(loggedIn);
           }
         });
 
@@ -73,27 +81,6 @@ export default function App() {
     };
   }, []);
 
-  // Re-check session when tab becomes visible again
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && isLoggedIn) {
-        try {
-          const { data } = await supabase.auth.getSession();
-          if (!data.session) {
-            // Session expired, log out
-            setIsLoggedIn(false);
-            setCurrentRole(null);
-            navigate('/login');
-          }
-        } catch (e) {
-          console.error("Session check failed:", e);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isLoggedIn, navigate]);
 
 
 
@@ -162,7 +149,28 @@ export default function App() {
 
   // Logged in but role not loaded yet
   if (isLoggedIn && (roleLoading || !currentRole) && !isAuthRoute) {
-    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading your profile…</div>;
+    return (
+      <div style={{ padding: "2rem", textAlign: "center", fontFamily: "sans-serif" }}>
+        <p style={{ fontSize: "1.125rem", marginBottom: "1rem" }}>
+          To see the latest updates, please refresh the page.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            padding: "0.75rem 1.5rem",
+            background: "#3b82f6",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontSize: "1rem",
+            fontWeight: "500"
+          }}
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
   }
 
   // Logged in and on /login → redirect away
