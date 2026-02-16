@@ -430,3 +430,95 @@ export async function getMyCompletedReviewsCount(): Promise<number> {
   // Use count if available, otherwise fall back to data length
   return count ?? data?.length ?? 0;
 }
+
+export type FeedbackReceivedItem = {
+  id: string;
+  projectTitle: string;
+  course: string;
+  week: string;
+  submittedDate: string;
+  status: string;
+  numReviews: number;
+};
+
+export type FeedbackProvidedItem = {
+  id: string;
+  reviewId: string;
+  projectTitle: string;
+  course: string;
+  week: string;
+  reviewedDate: string;
+  status: string;
+};
+
+/**
+ * Get all submissions by the current user with their review counts (Feedback Received).
+ */
+export async function getMyFeedbackReceived(): Promise<FeedbackReceivedItem[]> {
+  const user = await requireUser();
+
+  // Get my submissions
+  const { data: submissions, error: subError } = await supabase
+    .from("submissions")
+    .select("*")
+    .eq("author_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (subError) throw subError;
+
+  if (!submissions || submissions.length === 0) return [];
+
+  // Get review counts for these submissions
+  const submissionIds = submissions.map(s => s.id);
+  const reviewStats = await getReviewStatsForSubmissions(submissionIds);
+
+  return submissions.map(s => {
+    const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+    return {
+      id: s.id,
+      projectTitle: s.project_title,
+      course: s.course,
+      week: s.week,
+      submittedDate: new Date(s.created_at).toLocaleDateString(),
+      status: stats.numReviews > 0 ? "Feedback Received" : "Pending Feedback",
+      numReviews: stats.numReviews,
+    };
+  });
+}
+
+/**
+ * Get all reviews submitted by the current user (Feedback Provided).
+ */
+export async function getMyFeedbackProvided(): Promise<FeedbackProvidedItem[]> {
+  const user = await requireUser();
+
+  // Get all my submitted reviews with submission info
+  const { data, error } = await supabase
+    .from("reviews")
+    .select(`
+      id,
+      submission_id,
+      submitted_at,
+      status,
+      submissions:submission_id (
+        project_title,
+        course,
+        week
+      )
+    `)
+    .eq("reviewer_id", user.id)
+    .eq("status", "submitted")
+    .order("submitted_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((r: any) => ({
+    id: r.submission_id,
+    reviewId: r.id,
+    projectTitle: r.submissions?.project_title ?? "Unknown Project",
+    course: r.submissions?.course ?? "Unknown Course",
+    week: r.submissions?.week ?? "Unknown Week",
+    reviewedDate: new Date(r.submitted_at).toLocaleDateString(),
+    status: "Review Submitted",
+  }));
+}
