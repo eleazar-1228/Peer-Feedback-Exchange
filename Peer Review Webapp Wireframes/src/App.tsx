@@ -6,7 +6,8 @@ import { SubmissionFlow } from './components/SubmissionFlow';
 import { ReviewFlow } from './components/ReviewFlow';
 import { ProfessorView } from './components/ProfessorView';
 import { SubmissionFeedback } from './components/SubmissionFeedback';
-import { LogOut } from 'lucide-react';
+import { AccountSettings } from './components/AccountSettings';
+import { LogOut, Settings } from 'lucide-react';
 import { supabase } from "./lib/supabaseClient";
 import { useEffect, useMemo, useRef} from "react";
 
@@ -46,14 +47,22 @@ export default function App() {
           await loadRoleFromProfile();
         }
 
-        const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
           const loggedIn = !!session;
-          setIsLoggedIn(loggedIn);
-
-          if (loggedIn) {
+          
+          // Only reload role on actual auth changes, not token refreshes
+          if (event === 'SIGNED_IN') {
+            setIsLoggedIn(true);
             await loadRoleFromProfile();
-          } else {
+          } else if (event === 'SIGNED_OUT') {
+            setIsLoggedIn(false);
             setCurrentRole(null);
+          } else if (event === 'TOKEN_REFRESHED') {
+            // Session refreshed, but we're already logged in - do nothing
+            console.log('Token refreshed');
+          } else {
+            // For other events, just update login state
+            setIsLoggedIn(loggedIn);
           }
         });
 
@@ -72,6 +81,7 @@ export default function App() {
       unsub?.subscription.unsubscribe();
     };
   }, []);
+
 
 
 
@@ -140,7 +150,28 @@ export default function App() {
 
   // Logged in but role not loaded yet
   if (isLoggedIn && (roleLoading || !currentRole) && !isAuthRoute) {
-    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading your profile…</div>;
+    return (
+      <div style={{ padding: "2rem", textAlign: "center", fontFamily: "sans-serif" }}>
+        <p style={{ fontSize: "1.125rem", marginBottom: "1rem" }}>
+          To see the latest updates, please refresh the page.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            padding: "0.75rem 1.5rem",
+            background: "#3b82f6",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontSize: "1rem",
+            fontWeight: "500"
+          }}
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
   }
 
   // Logged in and on /login → redirect away
@@ -204,6 +235,13 @@ export default function App() {
               </button>
             )}
             <button
+              onClick={() => navigate('/settings')}
+              className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+            <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-2"
             >
@@ -256,6 +294,15 @@ export default function App() {
                 onBack={() => navigate("/students")}
                 submissionTitle={submissionTitleFromState || "Submission"}
               />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <RequireRole allowed={["student", "professor"]}>
+              <AccountSettings onBack={() => navigate(currentRole === "professor" ? "/professor" : "/students")} />
             </RequireRole>
           }
         />

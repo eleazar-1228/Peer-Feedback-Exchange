@@ -205,6 +205,7 @@ export async function submitReview(submissionId: string, input: SaveReviewInput)
 export type ReviewDisplayRow = {
   id: string;
   reviewerName: string;
+  submittedAt: string;
 
   overallRating: number;
   clarity: number | null;
@@ -230,6 +231,7 @@ export type ReviewWithReviewer = ReviewRow & {
 export async function getSubmittedReviewsForSubmission(submissionId: string): Promise<ReviewDisplayRow[]> {
     await requireUser();
 
+    // Fetch reviews without the join first
     const { data, error } = await supabase
         .from("reviews")
         .select(`
@@ -248,8 +250,7 @@ export async function getSubmittedReviewsForSubmission(submissionId: string): Pr
         other_observations,
         created_at,
         updated_at,
-        submitted_at,
-        reviewer:profiles(first_name,last_name,student_id)
+        submitted_at
         `)
         .eq("submission_id", submissionId)
         .eq("status", "submitted")
@@ -259,32 +260,265 @@ export async function getSubmittedReviewsForSubmission(submissionId: string): Pr
 
     const rows = (data ?? []) as any[];
 
-    return rows.map((review) => {
+    if (rows.length === 0) {
+        return [];
+    }
 
-        // ✅ THIS is where your snippet goes
-        const p = review.reviewer?.[0];
-        const reviewerName =
-        p
-            ? (`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim()
-                || p.student_id
-                || "Anonymous")
-            : "Anonymous";
+    // Fetch reviewer profiles separately - get all fields
+    const reviewerIds = rows.map(r => r.reviewer_id);
+    const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", reviewerIds);
+
+    if (profileError) {
+        // Continue without profiles rather than failing
+    }
+
+    // Create a map of reviewer_id -> profile
+    const profileMap = new Map();
+    (profiles ?? []).forEach(p => {
+        profileMap.set(p.id, p);
+    });
+
+    return rows.map((review) => {
+        const profile = profileMap.get(review.reviewer_id);
+        
+        // Try multiple fallbacks for the reviewer name
+        let reviewerName = "Anonymous";
+        
+        if (profile) {
+            // Try full name first
+            const fullName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+            if (fullName) {
+                reviewerName = fullName;
+            } 
+            // Try student ID
+            else if (profile.student_id) {
+                reviewerName = `Student ${profile.student_id}`;
+            }
+            // Try email from profile
+            else if (profile.email) {
+                reviewerName = profile.email;
+            }
+            // Try username if it exists
+            else if (profile.username) {
+                reviewerName = profile.username;
+            }
+            // Use any name-like field
+            else if (profile.name) {
+                reviewerName = profile.name;
+            }
+            // Try just the user ID as last resort
+            else {
+                reviewerName = `User ${review.reviewer_id.substring(0, 8)}`;
+            }
+        } else {
+            // No profile found, use user ID
+            reviewerName = `User ${review.reviewer_id.substring(0, 8)}`;
+        }
 
         // Convert DB row → UI object
         return {
-        id: review.id,
-        reviewerName,
+            id: review.id,
+            reviewerName,
+            submittedAt: review.submitted_at,
 
-        overallRating: review.overall_rating ?? 0,
-        clarity: review.clarity,
-        organization: review.organization,
-        technicalSoundness: review.technical_soundness,
-        usability: review.usability,
+            overallRating: review.overall_rating ?? 0,
+            clarity: review.clarity,
+            organization: review.organization,
+            technicalSoundness: review.technical_soundness,
+            usability: review.usability,
 
-        strengths: review.strengths,
-        improvements: review.improvements,
-        oneChange: review.one_change,
-        otherObservations: review.other_observations,
+            strengths: review.strengths,
+            improvements: review.improvements,
+            oneChange: review.one_change,
+            otherObservations: review.other_observations,
         };
     });
+}
+
+/**
+ * Get the count of submitted reviews for multiple submissions.
+ * Returns a map of submission_id -> count.
+ */
+export async function getReviewCountsForSubmissions(submissionIds: string[]): Promise<Record<string, number>> {
+  if (submissionIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("submission_id")
+    .eq("status", "submitted")
+    .in("submission_id", submissionIds);
+
+  if (error) throw error;
+
+  // Count reviews per submission
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    counts[row.submission_id] = (counts[row.submission_id] || 0) + 1;
+  }
+
+  return counts;
+}
+
+export type SubmissionReviewStats = {
+  numReviews: number;
+  overallScore: number | null;
+};
+
+/**
+ * Get review statistics (count and average score) for multiple submissions.
+ * Returns a map of submission_id -> { numReviews, overallScore }.
+ */
+export async function getReviewStatsForSubmissions(submissionIds: string[]): Promise<Record<string, SubmissionReviewStats>> {
+  if (submissionIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("submission_id, overall_rating")
+    .eq("status", "submitted")
+    .in("submission_id", submissionIds);
+
+  if (error) throw error;
+
+  // Calculate count and average score per submission
+  const stats: Record<string, SubmissionReviewStats> = {};
+  
+  for (const row of data ?? []) {
+    if (!stats[row.submission_id]) {
+      stats[row.submission_id] = {
+        numReviews: 0,
+        overallScore: null,
+      };
+    }
+    
+    stats[row.submission_id].numReviews += 1;
+    
+    // Calculate running average for overall score
+    const currentAvg = stats[row.submission_id].overallScore ?? 0;
+    const count = stats[row.submission_id].numReviews;
+    const rating = row.overall_rating ?? 0;
+    
+    stats[row.submission_id].overallScore = 
+      (currentAvg * (count - 1) + rating) / count;
+  }
+
+  return stats;
+}
+
+/**
+ * Get the count of reviews completed by the current user.
+ * Returns the number of submitted reviews by this user.
+ */
+export async function getMyCompletedReviewsCount(): Promise<number> {
+  const user = await requireUser();
+
+  const { data, error, count } = await supabase
+    .from("reviews")
+    .select("id", { count: "exact", head: false })
+    .eq("reviewer_id", user.id)
+    .eq("status", "submitted");
+
+  if (error) {
+    console.error("Error fetching my completed reviews count:", error);
+    throw error;
+  }
+
+  console.log("My completed reviews data:", data, "Count:", count);
+
+  // Use count if available, otherwise fall back to data length
+  return count ?? data?.length ?? 0;
+}
+
+export type FeedbackReceivedItem = {
+  id: string;
+  projectTitle: string;
+  course: string;
+  week: string;
+  submittedDate: string;
+  status: string;
+  numReviews: number;
+};
+
+export type FeedbackProvidedItem = {
+  id: string;
+  reviewId: string;
+  projectTitle: string;
+  course: string;
+  week: string;
+  reviewedDate: string;
+  status: string;
+};
+
+/**
+ * Get all submissions by the current user with their review counts (Feedback Received).
+ */
+export async function getMyFeedbackReceived(): Promise<FeedbackReceivedItem[]> {
+  const user = await requireUser();
+
+  // Get my submissions
+  const { data: submissions, error: subError } = await supabase
+    .from("submissions")
+    .select("*")
+    .eq("author_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (subError) throw subError;
+
+  if (!submissions || submissions.length === 0) return [];
+
+  // Get review counts for these submissions
+  const submissionIds = submissions.map(s => s.id);
+  const reviewStats = await getReviewStatsForSubmissions(submissionIds);
+
+  return submissions.map(s => {
+    const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+    return {
+      id: s.id,
+      projectTitle: s.project_title,
+      course: s.course,
+      week: s.week,
+      submittedDate: new Date(s.created_at).toLocaleDateString(),
+      status: stats.numReviews > 0 ? "Feedback Received" : "Pending Feedback",
+      numReviews: stats.numReviews,
+    };
+  });
+}
+
+/**
+ * Get all reviews submitted by the current user (Feedback Provided).
+ */
+export async function getMyFeedbackProvided(): Promise<FeedbackProvidedItem[]> {
+  const user = await requireUser();
+
+  // Get all my submitted reviews with submission info
+  const { data, error } = await supabase
+    .from("reviews")
+    .select(`
+      id,
+      submission_id,
+      submitted_at,
+      status,
+      submissions:submission_id (
+        project_title,
+        course,
+        week
+      )
+    `)
+    .eq("reviewer_id", user.id)
+    .eq("status", "submitted")
+    .order("submitted_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((r: any) => ({
+    id: r.submission_id,
+    reviewId: r.id,
+    projectTitle: r.submissions?.project_title ?? "Unknown Project",
+    course: r.submissions?.course ?? "Unknown Course",
+    week: r.submissions?.week ?? "Unknown Week",
+    reviewedDate: new Date(r.submitted_at).toLocaleDateString(),
+    status: "Review Submitted",
+  }));
 }

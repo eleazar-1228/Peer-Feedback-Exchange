@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, ClipboardCheck, CheckCircle, FileInput, ClipboardList, Calendar, BookOpen, Clock, ChevronUp, ChevronDown, X, Star, Search } from 'lucide-react';
+import { FileText, ClipboardCheck, CheckCircle, FileInput, ClipboardList, Calendar, BookOpen, Clock, ChevronUp, ChevronDown, X, Star, Search, ChevronLeft } from 'lucide-react';
 import { FeedbackReceivedModal } from './FeedbackReceivedModal';
 import { FeedbackProvidedModal } from './FeedbackProvidedModal';
 import { Badge } from './ui/badge';
@@ -10,8 +10,14 @@ import {
   getAllSubmissionsFiltered,
   getDistinctCourses
 } from "../lib/submissionService";
-import { getSubmittedReviewsForSubmission } from "../lib/reviewService";
-import type { ReviewDisplayRow } from "../lib/reviewService";
+import { 
+  getSubmittedReviewsForSubmission, 
+  getReviewStatsForSubmissions, 
+  getMyCompletedReviewsCount,
+  getMyFeedbackReceived,
+  getMyFeedbackProvided
+} from "../lib/reviewService";
+import type { ReviewDisplayRow, FeedbackReceivedItem, FeedbackProvidedItem } from "../lib/reviewService";
 
 
 
@@ -81,12 +87,18 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   const [loading, setLoading] = useState(true);
   const [dbCourses, setDbCourses] = useState<string[]>([]);
 
+  // Generate year options: only current year (no past, no future)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear];
+
 
   
   // All Feedback tab state
   const [allSortField, setAllSortField] = useState<AllSubmissionsSortField | null>(null);
   const [allSortDirection, setAllSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCourse, setFilterCourse] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [selectedAllSubmission, setSelectedAllSubmission] = useState<AllSubmission | null>(null);
@@ -96,6 +108,12 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
   //const [submissionReviews, setSubmissionReviews] = useState<Record<string, any[]>>({});
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviews, setReviews] = useState<ReviewDisplayRow[]>([]);
+  const [reviewPage, setReviewPage] = useState(0);
+  const [selectedReviewForDetails, setSelectedReviewForDetails] = useState<ReviewDisplayRow | null>(null);
+  const [myCompletedReviewsCount, setMyCompletedReviewsCount] = useState(0);
+  const [feedbackReceived, setFeedbackReceived] = useState<FeedbackReceivedItem[]>([]);
+  const [feedbackProvided, setFeedbackProvided] = useState<FeedbackProvidedItem[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
 
 
@@ -119,10 +137,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     async function loadSubmissions() {
       setSubsLoading(true);
       try {
+        // Don't use course filter in API - we'll filter client-side for better flexibility
         const [mine, all] = await Promise.all([
           getMySubmissions(),
           getAllSubmissionsFiltered({
-            course: filterCourse || undefined,
             teamName: filterTeam || undefined,
             status: (filterStatus as "Pending" | "Reviewed") || undefined,
             limit: 200,
@@ -130,32 +148,46 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
           }),
         ]);
 
+        // Get review stats (counts and average scores) for all submissions
+        const allSubmissionIds = [...(mine || []).map(s => s.id), ...(all || []).map(s => s.id)];
+        const reviewStats = await getReviewStatsForSubmissions(allSubmissionIds);
+
         setMyDbSubmissions(
-          mine.map((s) => ({
-            id: s.id, // later switch your UI id types to string
-            projectTitle: s.project_title,
-            course: s.course,
-            week: s.week,
-            projectTeam: s.project_team,
-            submittedDate: new Date(s.created_at).toLocaleDateString(),
-            status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: 0,
-            overallScore: null,
-            reviews: [],
-          }))
+          mine.map((s) => {
+            const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+            // Status is "Reviewed" if there's at least one review, otherwise "Pending"
+            const status = stats.numReviews > 0 ? "Reviewed" : "Pending";
+            return {
+              id: s.id,
+              projectTitle: s.project_title,
+              course: s.course,
+              week: s.week,
+              projectTeam: s.project_team,
+              submittedDate: new Date(s.created_at).toLocaleDateString(),
+              status,
+              numReviews: stats.numReviews,
+              overallScore: stats.overallScore,
+              reviews: [],
+            };
+          })
         );
 
         setAllDbSubmissions(
-          all.map((s) => ({
-            id: s.id,
-            projectTitle: s.project_title,
-            teamName: s.project_team,
-            courseSemester: s.course,
-            status: s.status === "pending" ? "Pending" : "Reviewed",
-            numReviews: 0,
-            overallScore: null,
-            reviews: [],
-          }))
+          all.map((s) => {
+            const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
+            // Status is "Reviewed" if there's at least one review, otherwise "Pending"
+            const status = stats.numReviews > 0 ? "Reviewed" : "Pending";
+            return {
+              id: s.id,
+              projectTitle: s.project_title,
+              teamName: s.project_team,
+              courseSemester: s.course,
+              status,
+              numReviews: stats.numReviews,
+              overallScore: stats.overallScore,
+              reviews: [],
+            };
+          })
         );
       } catch (e) {
         console.error("Failed to load submissions:", e);
@@ -165,7 +197,15 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     }
 
     loadSubmissions();
-  }, [filterCourse, filterTeam, filterStatus]);
+
+    // Poll for updates every 30 seconds
+    const pollInterval = setInterval(() => {
+      loadSubmissions();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount or when dependencies change
+    return () => clearInterval(pollInterval);
+  }, [filterClass, filterSemester, filterYear, filterTeam, filterStatus]);
 
 
   useEffect(() => {
@@ -180,12 +220,71 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
     loadCourses();
   }, []);
 
+  useEffect(() => {
+    async function loadMyReviewsCount() {
+      try {
+        const count = await getMyCompletedReviewsCount();
+        console.log("Setting my completed reviews count to:", count);
+        setMyCompletedReviewsCount(count);
+      } catch (e) {
+        console.error("Failed to load my reviews count:", e);
+      }
+    }
+    
+    loadMyReviewsCount();
+
+    // Poll for updates every 30 seconds
+    const pollInterval = setInterval(() => {
+      loadMyReviewsCount();
+    }, 30000);
+
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  useEffect(() => {
+    async function loadFeedbackDetails() {
+      if (activeTab !== 'feedback') return;
+      
+      setFeedbackLoading(true);
+      try {
+        const [received, provided] = await Promise.all([
+          getMyFeedbackReceived(),
+          getMyFeedbackProvided(),
+        ]);
+        setFeedbackReceived(received);
+        setFeedbackProvided(provided);
+      } catch (e) {
+        console.error("Failed to load feedback details:", e);
+      } finally {
+        setFeedbackLoading(false);
+      }
+    }
+    
+    loadFeedbackDetails();
+
+    // Poll for updates every 30 seconds when on feedback tab
+    let pollInterval: NodeJS.Timeout | null = null;
+    if (activeTab === 'feedback') {
+      pollInterval = setInterval(() => {
+        loadFeedbackDetails();
+      }, 30000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [activeTab]);
+
 
   useEffect(() => {
     async function loadReviews() {
-      if (!selectedSubmissionForDetails) return;
+      if (!selectedSubmissionForDetails) {
+        setReviews([]); // Clear reviews when modal closes
+        return;
+      }
 
       setReviewsLoading(true);
+      setReviews([]); // Clear previous reviews before loading new ones
       try {
         const r = await getSubmittedReviewsForSubmission(
           selectedSubmissionForDetails.id
@@ -204,9 +303,13 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   useEffect(() => {
     async function loadAllModalReviews() {
-      if (!selectedAllSubmission) return;
+      if (!selectedAllSubmission) {
+        setReviews([]); // Clear reviews when modal closes
+        return;
+      }
 
       setReviewsLoading(true);
+      setReviews([]); // Clear previous reviews before loading new ones
       try {
         const r = await getSubmittedReviewsForSubmission(selectedAllSubmission.id);
         setReviews(r);
@@ -233,19 +336,26 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   // Calculate stats from REAL data only
   const totalSubmissions = myDbSubmissions.length;
-  const reviewsPending = 0; // TODO: Calculate from actual review assignments
-  const completedReviews = 0; // TODO: Calculate from actual completed reviews
+  const reviewsPending = 0; // TODO: Calculate from actual review assignments (would need a review_assignments table)
+  const completedReviews = myCompletedReviewsCount;
 
   // REMOVED: Mock data - using only real database data now
-  const selectedFeedbackReceivedItem = null; // TODO: Implement with real data
-  const selectedFeedbackProvidedItem = null; // TODO: Implement with real data
 
   // Get unique courses and teams from REAL data
   const uniqueCourses = Array.from(new Set(allDbSubmissions.map(s => s.courseSemester))).sort();
   const uniqueTeams = Array.from(new Set(allDbSubmissions.map(s => s.teamName))).sort();
   // Filter and sort all submissions
     const filteredAllSubmissions = allDbSubmissions.filter(sub => {
-    const matchesCourse = !filterCourse || sub.courseSemester === filterCourse;
+    // Check if course matches any of the selected filters (class, semester, year)
+    let matchesCourse = true;
+    if (filterClass || filterSemester || filterYear) {
+      const courseStr = sub.courseSemester.toLowerCase();
+      matchesCourse = 
+        (!filterClass || courseStr.includes(filterClass.toLowerCase())) &&
+        (!filterSemester || courseStr.includes(filterSemester.toLowerCase())) &&
+        (!filterYear || courseStr.includes(filterYear));
+    }
+    
     const matchesStatus = !filterStatus || sub.status === filterStatus;
     const matchesTeam = !filterTeam || sub.teamName.toLowerCase().includes(filterTeam.toLowerCase());
     return matchesCourse && matchesStatus && matchesTeam;
@@ -279,7 +389,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   // Calculate stats for all submissions
   const totalAllSubmissions = allDbSubmissions.length;
-  const allReviewsPending = allDbSubmissions.reduce((acc, sub) => acc + Math.max(0, 3 - sub.numReviews), 0);
+  // Only count submissions with status "Pending" (no reviews yet)
+  const allReviewsPending = allDbSubmissions.filter(sub => sub.status === "Pending").length;
   const allCompletedReviews = allDbSubmissions.reduce((acc, sub) => acc + sub.numReviews, 0);
 
   const handleAllSort = (field: AllSubmissionsSortField) => {
@@ -303,6 +414,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   const closeAllDetailsModal = () => {
     setSelectedAllSubmission(null);
+    setReviewPage(0);
+    setSelectedReviewForDetails(null);
   };
 
   const handleSort = (field: SortField) => {
@@ -359,6 +472,8 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
   const closeDetailsModal = () => {
     setSelectedSubmissionForDetails(null);
+    setReviewPage(0);
+    setSelectedReviewForDetails(null);
   };
 
   if (loading) {
@@ -478,7 +593,46 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Submissions</h3>
               
               {/* Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <select
+                  value={filterClass}
+                  onChange={(e) => setFilterClass(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All classes</option>
+                  <option value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                <select
+                  value={filterSemester}
+                  onChange={(e) => setFilterSemester(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All semesters</option>
+                  <option value="Spring 1">Spring 1</option>
+                  <option value="Spring 2">Spring 2</option>
+                  <option value="Summer 1">Summer 1</option>
+                  <option value="Summer 2">Summer 2</option>
+                  <option value="Fall 1">Fall 1</option>
+                  <option value="Fall 2">Fall 2</option>
+                </select>
+
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All years</option>
+                  {yearOptions.map((yr) => (
+                    <option key={yr} value={yr.toString()}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                   <input
@@ -489,17 +643,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-                
-                <select
-                  value={filterCourse}
-                  onChange={(e) => setFilterCourse(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All courses</option>
-                  {dbCourses.map(course => (
-                    <option key={course} value={course}>{course}</option>
-                  ))}
-                </select>
 
                 <select
                   value={filterStatus}
@@ -513,7 +656,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
 
                 <button
                   onClick={() => {
-                    setFilterCourse('');
+                    setFilterClass('');
+                    setFilterSemester('');
+                    setFilterYear('');
                     setFilterStatus('');
                     setFilterTeam('');
                     setAllSortField(null);
@@ -792,18 +937,139 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         </div>
       )}
 
-      {/* Feedback Tab - TEMPORARILY DISABLED (uses mock data) */}
+      {/* Feedback Tab */}
       {activeTab === 'feedback' && (
-        <div className="bg-white rounded-lg border border-gray-200 p-8">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Feedback Details Coming Soon</h3>
-            <p className="text-gray-600 mb-4">
-              This feature will show detailed feedback you've received and provided once reviews are implemented.
-            </p>
-            <p className="text-sm text-gray-500">
-              For now, you can view all submissions in the "All Feedback" tab and your submissions in the "My Feedback Overview" tab.
-            </p>
-          </div>
+        <div>
+          {feedbackLoading ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+              <p className="text-gray-600">Loading feedback...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Feedback Received Section */}
+              <div className="bg-white rounded-lg border-2 border-green-200 shadow-sm">
+                <div className="bg-green-50 p-6 border-b border-green-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <FileInput className="w-6 h-6 text-green-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Feedback Received</h3>
+                      <p className="text-sm text-gray-600">Reviews on your submitted work</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+                  {feedbackReceived.length === 0 ? (
+                    <div className="p-6 text-center text-gray-500">
+                      No submissions yet
+                    </div>
+                  ) : (
+                    feedbackReceived.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          const submission = myDbSubmissions.find(s => s.id === item.id);
+                          if (submission) setSelectedSubmissionForDetails(submission);
+                        }}
+                        className={`p-5 hover:bg-gray-50 transition-colors ${
+                          item.status === 'Feedback Received' ? 'cursor-pointer' : 'cursor-default opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 text-base pr-2">{item.projectTitle}</h4>
+                          <Badge 
+                            variant={item.status === 'Feedback Received' ? 'default' : 'secondary'}
+                            className={item.status === 'Feedback Received' ? 'bg-green-100 text-green-800 border-green-300' : ''}
+                          >
+                            {item.status}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <BookOpen className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{item.course}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <ClipboardList className="w-4 h-4 flex-shrink-0" />
+                            <span>{item.week}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>Submitted: {item.submittedDate}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Star className="w-4 h-4 flex-shrink-0 text-yellow-500" />
+                            <span>{item.numReviews} review{item.numReviews !== 1 ? 's' : ''}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-green-700 bg-green-50 inline-block px-2 py-1 rounded">
+                            You are the Author
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Feedback Provided Section */}
+              <div className="bg-white rounded-lg border-2 border-purple-200 shadow-sm">
+                <div className="bg-purple-50 p-6 border-b border-purple-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-purple-100 rounded-lg">
+                      <ClipboardList className="w-6 h-6 text-purple-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Feedback Provided</h3>
+                      <p className="text-sm text-gray-600">Reviews you submitted for peers</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+                  {feedbackProvided.length === 0 ? (
+                    <div className="p-6 text-center text-gray-500">
+                      No reviews submitted yet
+                    </div>
+                  ) : (
+                    feedbackProvided.map((item) => (
+                      <div
+                        key={item.reviewId}
+                        className="p-5 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900 text-base pr-2">{item.projectTitle}</h4>
+                          <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-300">
+                            {item.status}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <BookOpen className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{item.course}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <ClipboardList className="w-4 h-4 flex-shrink-0" />
+                            <span>{item.week}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>Reviewed: {item.reviewedDate}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-purple-700 bg-purple-50 inline-block px-2 py-1 rounded">
+                            You are the Reviewer
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -920,23 +1186,6 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
         </div>
       )}
 
-      {/* Modals for Feedback Sections */}
-      {selectedFeedbackReceivedItem && selectedFeedbackReceivedItem.status === 'Feedback Received' && (
-        <FeedbackReceivedModal
-          isOpen={selectedFeedbackReceived !== null}
-          onClose={() => setSelectedFeedbackReceived(null)}
-          submission={selectedFeedbackReceivedItem}
-        />
-      )}
-
-      {selectedFeedbackProvidedItem && (
-        <FeedbackProvidedModal
-          isOpen={selectedFeedbackProvided !== null}
-          onClose={() => setSelectedFeedbackProvided(null)}
-          review={selectedFeedbackProvidedItem}
-        />
-      )}
-
       {/* Submission Details Modal (from Overview table) */}
       {selectedSubmissionForDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -983,34 +1232,123 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </div>
               </div>
 
-              {/* Reviews List */}
+              {/* Reviews List or Detail View */}
               <div className="space-y-6">
-                <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews</h4>
+                {selectedReviewForDetails ? (
+                  <>
+                    {/* Back Button */}
+                    <button
+                      onClick={() => setSelectedReviewForDetails(null)}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                      Back to Reviews List
+                    </button>
 
-                {reviewsLoading ? (
-                  <div className="text-sm text-gray-600">Loading reviews...</div>
-                ) : reviews.length === 0 ? (
-                  <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                    {/* Review Details */}
+                    <div>
+                      <h4 className="font-semibold text-gray-900 text-lg">Review by {selectedReviewForDetails.reviewerName}</h4>
+                      <p className="text-sm text-gray-600">
+                        Submitted on {new Date(selectedReviewForDetails.submittedAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                    </div>
+
+                    <FeedbackDisplay
+                      review={{
+                        reviewerName: selectedReviewForDetails.reviewerName,
+                        overallRating: selectedReviewForDetails.overallRating,
+                        clarity: selectedReviewForDetails.clarity,
+                        organization: selectedReviewForDetails.organization,
+                        technicalSoundness: selectedReviewForDetails.technicalSoundness,
+                        usability: selectedReviewForDetails.usability,
+                        strengths: selectedReviewForDetails.strengths ?? "",
+                        improvements: selectedReviewForDetails.improvements ?? "",
+                        oneChange: selectedReviewForDetails.oneChange ?? "",
+                        otherObservations: selectedReviewForDetails.otherObservations ?? "",
+                      }}
+                    />
+                  </>
                 ) : (
-                  <div className="space-y-6">
-                    {reviews.map((r, idx) => (
-                      <FeedbackDisplay
-                        key={r.id ?? idx}
-                        review={{
-                          reviewerName: r.reviewerName,
-                          overallRating: r.overallRating,
-                          clarity: r.clarity,
-                          organization: r.organization,
-                          technicalSoundness: r.technicalSoundness,
-                          usability: r.usability,
-                          strengths: r.strengths ?? "",
-                          improvements: r.improvements ?? "",
-                          oneChange: r.oneChange ?? "",
-                          otherObservations: r.otherObservations ?? "",
-                        }}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <h4 className="font-semibold text-gray-900 text-lg">Peer Reviews ({reviews.length})</h4>
+
+                    {reviewsLoading ? (
+                      <div className="text-sm text-gray-600">Loading reviews...</div>
+                    ) : reviews.length === 0 ? (
+                      <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {reviews.slice(reviewPage * 10, (reviewPage + 1) * 10).map((r, idx) => (
+                            <div 
+                              key={r.id ?? idx} 
+                              onClick={() => setSelectedReviewForDetails(r)}
+                              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold text-gray-900">{r.reviewerName}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {new Date(r.submittedAt).toLocaleDateString('en-US', { 
+                                      year: 'numeric', 
+                                      month: 'long', 
+                                      day: 'numeric' 
+                                    })}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                    <span className="text-sm font-medium text-gray-900">{r.overallRating}/5</span>
+                                  </div>
+                                  <ChevronDown className="w-5 h-5 text-gray-400 rotate-[-90deg]" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {reviews.length > 10 && (
+                          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                            <button
+                              onClick={() => setReviewPage(Math.max(0, reviewPage - 1))}
+                              disabled={reviewPage === 0}
+                              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                                reviewPage === 0
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              <ChevronUp className="w-4 h-4 rotate-[-90deg]" />
+                              Previous
+                            </button>
+
+                            <span className="text-sm text-gray-600">
+                              Page {reviewPage + 1} of {Math.ceil(reviews.length / 10)}
+                            </span>
+
+                            <button
+                              onClick={() => setReviewPage(Math.min(Math.ceil(reviews.length / 10) - 1, reviewPage + 1))}
+                              disabled={reviewPage >= Math.ceil(reviews.length / 10) - 1}
+                              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                                reviewPage >= Math.ceil(reviews.length / 10) - 1
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Next
+                              <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1075,35 +1413,124 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </div>
               </div>
 
-              {/* Reviews List */}
-              <h4 className="font-semibold text-gray-900 text-lg mb-4">
-                Peer Reviews
-              </h4>
+              {/* Reviews List or Detail View */}
+              {selectedReviewForDetails ? (
+                <>
+                  {/* Back Button */}
+                  <button
+                    onClick={() => setSelectedReviewForDetails(null)}
+                    className="mb-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                    Back to Reviews List
+                  </button>
 
-              {reviewsLoading ? (
-                <div className="text-sm text-gray-600">Loading reviews...</div>
-              ) : reviews.length === 0 ? (
-                <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                  {/* Review Details */}
+                  <div className="mb-4">
+                    <h4 className="font-semibold text-gray-900 text-lg">Review by {selectedReviewForDetails.reviewerName}</h4>
+                    <p className="text-sm text-gray-600">
+                      Submitted on {new Date(selectedReviewForDetails.submittedAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+
+                  <FeedbackDisplay
+                    review={{
+                      reviewerName: selectedReviewForDetails.reviewerName,
+                      overallRating: selectedReviewForDetails.overallRating,
+                      clarity: selectedReviewForDetails.clarity,
+                      organization: selectedReviewForDetails.organization,
+                      technicalSoundness: selectedReviewForDetails.technicalSoundness,
+                      usability: selectedReviewForDetails.usability,
+                      strengths: selectedReviewForDetails.strengths ?? "",
+                      improvements: selectedReviewForDetails.improvements ?? "",
+                      oneChange: selectedReviewForDetails.oneChange ?? "",
+                      otherObservations: selectedReviewForDetails.otherObservations ?? "",
+                    }}
+                  />
+                </>
               ) : (
-                <div className="space-y-6">
-                  {reviews.map((r, idx) => (
-                    <FeedbackDisplay
-                      key={r.id ?? idx}
-                      review={{
-                        reviewerName: r.reviewerName,
-                        overallRating: r.overallRating,
-                        clarity: r.clarity,
-                        organization: r.organization,
-                        technicalSoundness: r.technicalSoundness,
-                        usability: r.usability,
-                        strengths: r.strengths ?? "",
-                        improvements: r.improvements ?? "",
-                        oneChange: r.oneChange ?? "",
-                        otherObservations: r.otherObservations ?? "",
-                      }}
-                    />
-                  ))}
-                </div>
+                <>
+                  <h4 className="font-semibold text-gray-900 text-lg mb-4">
+                    Peer Reviews ({reviews.length})
+                  </h4>
+
+                  {reviewsLoading ? (
+                    <div className="text-sm text-gray-600">Loading reviews...</div>
+                  ) : reviews.length === 0 ? (
+                    <div className="text-sm text-gray-600">No submitted reviews yet.</div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        {reviews.slice(reviewPage * 10, (reviewPage + 1) * 10).map((r, idx) => (
+                          <div 
+                            key={r.id ?? idx} 
+                            onClick={() => setSelectedReviewForDetails(r)}
+                            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-semibold text-gray-900">{r.reviewerName}</p>
+                                <p className="text-sm text-gray-600">
+                                  {new Date(r.submittedAt).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                  })}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                  <span className="text-sm font-medium text-gray-900">{r.overallRating}/5</span>
+                                </div>
+                                <ChevronDown className="w-5 h-5 text-gray-400 rotate-[-90deg]" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Pagination */}
+                      {reviews.length > 10 && (
+                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                          <button
+                            onClick={() => setReviewPage(Math.max(0, reviewPage - 1))}
+                            disabled={reviewPage === 0}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                              reviewPage === 0
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            <ChevronUp className="w-4 h-4 rotate-[-90deg]" />
+                            Previous
+                          </button>
+
+                          <span className="text-sm text-gray-600">
+                            Page {reviewPage + 1} of {Math.ceil(reviews.length / 10)}
+                          </span>
+
+                          <button
+                            onClick={() => setReviewPage(Math.min(Math.ceil(reviews.length / 10) - 1, reviewPage + 1))}
+                            disabled={reviewPage >= Math.ceil(reviews.length / 10) - 1}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                              reviewPage >= Math.ceil(reviews.length / 10) - 1
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            Next
+                            <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
             </div>
