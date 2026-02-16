@@ -184,7 +184,7 @@ export async function getAllSubmissionsFiltered(params: GetAllSubmissionsParams 
   })) as SubmissionWithAuthor[];
 }
 
-export async function getDistinctCourses() {
+export async function getDistinctCourses(): Promise<string[]> {
   const { data, error } = await supabase
     .from("submissions")
     .select("course")
@@ -192,6 +192,6 @@ export async function getDistinctCourses() {
 
   if (error) throw error;
 
-  const courses = Array.from(new Set((data ?? []).map((r) => r.course))).filter(Boolean);
+  const courses = Array.from(new Set((data ?? []).map((r) => r.course))).filter(Boolean) as string[];
   return courses;
 }
