@@ -28,7 +28,7 @@ interface DashboardProps {
 }
 
 type SortField = 'projectTitle' | 'course' | 'week' | 'status' | 'numReviews' | 'overallScore';
-type AllSubmissionsSortField = 'projectTitle' | 'teamName' | 'courseSemester' | 'status' | 'numReviews' | 'overallScore';
+type AllSubmissionsSortField = 'projectTitle' | 'teamName' | 'courseSemester' | 'authorName' | 'submittedDate' | 'status' | 'numReviews' | 'overallScore';
 
 interface StudentSubmission {
   id: string;
@@ -59,6 +59,8 @@ interface AllSubmission {
   projectTitle: string;
   teamName: string;
   courseSemester: string;
+  authorName: string;
+  submittedDate: string;
   status: 'Pending' | 'Reviewed';
   numReviews: number;
   overallScore: number | null;
@@ -177,11 +179,22 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
             const stats = reviewStats[s.id] || { numReviews: 0, overallScore: null };
             // Status is "Reviewed" if there's at least one review, otherwise "Pending"
             const status = stats.numReviews > 0 ? "Reviewed" : "Pending";
+            
+            // Get author name from profile
+            const author = s.author;
+            let authorName = "Unknown";
+            if (author) {
+              const fullName = `${author.first_name ?? ""} ${author.last_name ?? ""}`.trim();
+              authorName = fullName || author.student_id || author.email || "Unknown";
+            }
+            
             return {
               id: s.id,
               projectTitle: s.project_title,
               teamName: s.project_team,
               courseSemester: s.course,
+              authorName,
+              submittedDate: new Date(s.created_at).toLocaleDateString(),
               status,
               numReviews: stats.numReviews,
               overallScore: stats.overallScore,
@@ -703,6 +716,24 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                       </div>
                     </th>
                     <th 
+                      onClick={() => handleAllSort('authorName')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        Submitted By
+                        <AllSortIcon field="authorName" />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleAllSort('submittedDate')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-2">
+                        Date Submitted
+                        <AllSortIcon field="submittedDate" />
+                      </div>
+                    </th>
+                    <th 
                       onClick={() => handleAllSort('status')}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     >
@@ -746,6 +777,12 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                       </td>
                       <td className="px-6 py-4 text-gray-900 text-sm">
                         {submission.courseSemester}
+                      </td>
+                      <td className="px-6 py-4 text-gray-900">
+                        {submission.authorName}
+                      </td>
+                      <td className="px-6 py-4 text-gray-900 text-sm">
+                        {submission.submittedDate}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -1199,6 +1236,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 <p className="text-sm text-gray-600">
                   {selectedSubmissionForDetails.projectTeam} • {selectedSubmissionForDetails.course}
                 </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Submitted on {selectedSubmissionForDetails.submittedDate}
+                </p>
               </div>
               <button
                 onClick={closeDetailsModal}
@@ -1379,6 +1419,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 </h3>
                 <p className="text-sm text-gray-600">
                   {selectedAllSubmission.teamName} • {selectedAllSubmission.courseSemester}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Submitted by {selectedAllSubmission.authorName} on {selectedAllSubmission.submittedDate}
                 </p>
               </div>
               <button

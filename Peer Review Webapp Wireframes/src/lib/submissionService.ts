@@ -93,6 +93,15 @@ export type GetAllSubmissionsParams = {
   offset?: number;
 };
 
+export type SubmissionWithAuthor = SubmissionRow & {
+  author?: {
+    first_name: string | null;
+    last_name: string | null;
+    student_id: string | null;
+    email: string | null;
+  };
+};
+
 export async function getAllSubmissionsFiltered(params: GetAllSubmissionsParams = {}) {
   let q = supabase
     .from("submissions")
@@ -123,7 +132,29 @@ export async function getAllSubmissionsFiltered(params: GetAllSubmissionsParams 
 
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []) as SubmissionRow[];
+  
+  const submissions = (data ?? []) as SubmissionRow[];
+  
+  // Fetch author profiles separately
+  if (submissions.length === 0) return [];
+  
+  const authorIds = submissions.map(s => s.author_id);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, first_name, last_name, student_id, email")
+    .in("id", authorIds);
+  
+  // Create a map of author_id -> profile
+  const profileMap = new Map();
+  (profiles ?? []).forEach(p => {
+    profileMap.set(p.id, p);
+  });
+  
+  // Attach author info to submissions
+  return submissions.map(s => ({
+    ...s,
+    author: profileMap.get(s.author_id),
+  })) as SubmissionWithAuthor[];
 }
 
 export async function getDistinctCourses() {
