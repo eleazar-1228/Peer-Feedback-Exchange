@@ -98,7 +98,6 @@ export type SubmissionWithAuthor = SubmissionRow & {
     first_name: string | null;
     last_name: string | null;
     student_id: string | null;
-    email: string | null;
   };
 };
 
@@ -135,20 +134,48 @@ export async function getAllSubmissionsFiltered(params: GetAllSubmissionsParams 
   
   const submissions = (data ?? []) as SubmissionRow[];
   
-  // Fetch author profiles separately
+  // Fetch author profiles separately - fetch one by one to avoid RLS issues
   if (submissions.length === 0) return [];
   
-  const authorIds = submissions.map(s => s.author_id);
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, first_name, last_name, student_id, email")
-    .in("id", authorIds);
+  const authorIds = [...new Set(submissions.map(s => s.author_id))]; // Remove duplicates
+  console.log("Fetching profiles for author IDs:", authorIds);
   
-  // Create a map of author_id -> profile
+  // DEBUG: Fetch ALL profiles to see what's in the table
+  const { data: allProfiles, error: allProfilesError } = await supabase
+    .from("profiles")
+    .select("*");
+  console.log("ALL PROFILES IN DATABASE:", allProfiles);
+  console.log("ALL PROFILES ERROR:", allProfilesError);
+  
+  // Fetch profiles one by one to avoid potential query issues
   const profileMap = new Map();
-  (profiles ?? []).forEach(p => {
-    profileMap.set(p.id, p);
-  });
+  
+  for (const authorId of authorIds) {
+    try {
+      console.log(`Attempting to fetch profile for author ID: ${authorId}`);
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authorId)
+        .maybeSingle();
+      
+      console.log(`Profile fetch result for ${authorId}:`, { profile, error });
+      
+      if (error) {
+        console.error(`Error fetching profile for ${authorId}:`, error);
+      } else if (profile) {
+        console.log(`Successfully fetched profile:`, profile);
+        profileMap.set(profile.id, profile);
+      } else {
+        console.warn(`No profile found for author ID: ${authorId}`);
+      }
+    } catch (e) {
+      console.error(`Failed to fetch profile for ${authorId}:`, e);
+    }
+  }
+  
+  console.log("Final profile map:", profileMap);
+  console.log("Profile map size:", profileMap.size);
   
   // Attach author info to submissions
   return submissions.map(s => ({

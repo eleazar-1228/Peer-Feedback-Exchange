@@ -5,7 +5,6 @@ export type ProfileData = {
   first_name: string | null;
   last_name: string | null;
   student_id: string | null;
-  email: string | null;
   course: string | null;
   role: string | null;
 };
@@ -31,7 +30,6 @@ export type UpdateProfileInput = {
   first_name?: string;
   last_name?: string;
   student_id?: string;
-  email?: string;
   course?: string;
 };
 
