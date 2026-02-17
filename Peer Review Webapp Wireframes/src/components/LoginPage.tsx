@@ -358,7 +358,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
                 <BookOpen className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">PeerReview</h1>
+              <h1 className="text-3xl font-bold text-gray-900">PeerExchange</h1>
             </div>
             
             <h2 className="text-xl font-semibold text-gray-900 mb-3">

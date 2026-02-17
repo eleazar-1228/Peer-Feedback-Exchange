@@ -239,7 +239,7 @@ export default function App() {
       {/* Role Switcher for Demo */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">Peer Review Platform</h1>
+          <h1 className="text-xl font-semibold text-gray-900">Peer Exchange Platform</h1>
           <div className="flex gap-2 items-center">
             {currentRole === 'student' && (
               <button
