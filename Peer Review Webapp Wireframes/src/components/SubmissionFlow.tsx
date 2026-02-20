@@ -283,13 +283,13 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
               <Label className="text-sm font-medium text-gray-700">
                 Class <span className="text-red-500">*</span>
               </Label>
-              <Select value={courseClass} onValueChange={(value) => { setCourseClass(value); handleBlur('courseClass'); }}>
+              <Select value={courseClass} onValueChange={(value: string) => { setCourseClass(value); handleBlur('courseClass'); }}>
                 <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!courseClass, touched.courseClass)}`}>
                   <SelectValue placeholder="Select class..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  {/* <SelectItem value="Other">Other</SelectItem> */}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-gray-500">Select your course.</p>
@@ -300,7 +300,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                 <Label className="text-sm font-medium text-gray-700">
                   Semester <span className="text-red-500">*</span>
                 </Label>
-                <Select value={semester} onValueChange={(value) => { setSemester(value); handleBlur('semester'); }}>
+                <Select value={semester} onValueChange={(value: string) => { setSemester(value); handleBlur('semester'); }}>
                   <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!semester, touched.semester)}`}>
                     <SelectValue placeholder="Select semester..." />
                   </SelectTrigger>
@@ -320,7 +320,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                 <Label className="text-sm font-medium text-gray-700">
                   Year <span className="text-red-500">*</span>
                 </Label>
-                <Select value={year} onValueChange={(value) => { setYear(value); handleBlur('year'); }}>
+                <Select value={year} onValueChange={(value: string) => { setYear(value); handleBlur('year'); }}>
                   <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!year, touched.year)}`}>
                     <SelectValue placeholder="Select year..." />
                   </SelectTrigger>
@@ -341,7 +341,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                 <Label htmlFor="week" className="text-sm font-medium text-gray-700">
                   Week/module <span className="text-red-500">*</span>
                 </Label>
-                <Select value={week} onValueChange={(value) => { setWeek(value); handleBlur('week'); }}>
+                <Select value={week} onValueChange={(value: string) => { setWeek(value); handleBlur('week'); }}>
                   <SelectTrigger className={`mt-1.5 ${getFieldValidationClass(!!week, touched.week)}`}>
                     <SelectValue placeholder="Select week..." />
                   </SelectTrigger>
@@ -524,12 +524,12 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                     <Calendar
                       mode="single"
                       selected={dueDate}
-                      onSelect={(date) => {
+                      onSelect={(date: Date | undefined) => {
                         setDueDate(date);
                         handleBlur('dueDate');
                         setDatePickerOpen(false);
                       }}
-                      disabled={(date) => {
+                      disabled={(date: Date) => {
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
                         return date < today;

@@ -510,16 +510,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             )}
 
-            {/* Student/Employee ID Input - Only shown during signup */}
+            {/* Student/Employee ID Input - Only shown during signup, optional */}
             {mode === "signup" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Student ID</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {userType === "professor" ? "Employee ID" : "Student ID"} <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
                 <input
                   type="text"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg"
-                  required
+                  placeholder={userType === "professor" ? "Employee ID" : "Student ID"}
                 />
               </div>
             )}
