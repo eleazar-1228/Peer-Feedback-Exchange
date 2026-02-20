@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, FileText, Star, ExternalLink } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
@@ -16,9 +17,11 @@ interface ReviewFlowProps {
 }
 
 export function ReviewFlow({ onBack }: ReviewFlowProps) {
-  // List + selection
+  const { submissionId } = useParams<{ submissionId?: string }>();
+  const navigate = useNavigate();
+
+  // List + selection (submissionId from URL is source of truth - survives tab switch/refresh)
   const [assignedReviews, setAssignedReviews] = useState<ReviewableSubmission[]>([]);
-  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
 
   // Loading / status
   const [loading, setLoading] = useState(true);
@@ -56,14 +59,14 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
   }, []);
 
   const selectedSubmission = useMemo(
-    () => assignedReviews.find(s => s.id === selectedSubmissionId) ?? null,
-    [assignedReviews, selectedSubmissionId]
+    () => assignedReviews.find(s => s.id === submissionId) ?? null,
+    [assignedReviews, submissionId]
   );
 
   // When opening a submission, auto-load any existing draft/submitted review
   useEffect(() => {
     async function loadDraft() {
-      if (!selectedSubmissionId) return;
+      if (!submissionId) return;
 
       setDetailLoading(true);
       setMessage("");
@@ -80,7 +83,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
       setOtherObservations("");
 
       try {
-        const existing = await getMyReviewForSubmission(selectedSubmissionId);
+        const existing = await getMyReviewForSubmission(submissionId);
         if (existing) {
           setRating(existing.overall_rating ?? 0);
           setClarity(existing.clarity);
@@ -102,7 +105,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
     }
 
     loadDraft();
-  }, [selectedSubmissionId]);
+  }, [submissionId]);
 
   const isFormValid = () => {
     const hasTextFeedback =
@@ -125,7 +128,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
   });
 
   const handleSaveDraft = async () => {
-    if (!selectedSubmissionId) return;
+    if (!submissionId) return;
     if (!isFormValid()) {
       setMessage("Add at least one piece of feedback (stars, scores, or text) before saving.");
       return;
@@ -134,7 +137,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
     setSaving(true);
     setMessage("");
     try {
-      await saveDraftReview(selectedSubmissionId, reviewPayload());
+      await saveDraftReview(submissionId, reviewPayload());
       setMessage("Draft saved ✅");
     } catch (e: any) {
       console.error(e);
@@ -145,18 +148,18 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
   };
 
   const handleSubmitReview = async () => {
-    if (!selectedSubmissionId) return;
+    if (!submissionId) return;
     if (!isFormValid()) return;
 
     setSubmitting(true);
     setMessage("");
     try {
-      await submitReview(selectedSubmissionId, reviewPayload());
+      await submitReview(submissionId, reviewPayload());
       setMessage("Review submitted ✅");
 
-      // Remove from list (since getReviewableSubmissions filters out submitted-by-me)
-      setAssignedReviews(prev => prev.filter(s => s.id !== selectedSubmissionId));
-      setSelectedSubmissionId(null);
+      // Remove from list and navigate back to assignments
+      setAssignedReviews(prev => prev.filter(s => s.id !== submissionId));
+      navigate("/students/review");
     } catch (e: any) {
       console.error(e);
       setMessage(e?.message ?? "Failed to submit review");
@@ -198,7 +201,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
   );
 
   // --- List View ---
-  if (selectedSubmissionId === null) {
+  if (!submissionId) {
     return (
       <div className="max-w-6xl mx-auto p-8">
         <div className="mb-8">
@@ -245,7 +248,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
                     </div>
                   </div>
                   <button
-                    onClick={() => setSelectedSubmissionId(sub.id)}
+                    onClick={() => navigate(`/students/review/${sub.id}`)}
                     className="px-6 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700"
                   >
                     Start Review
@@ -265,7 +268,7 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => setSelectedSubmissionId(null)}
+          onClick={() => navigate("/students/review")}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -329,6 +332,13 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
                   href={selectedSubmission.project_document_url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    // Fallback: force new tab so current tab keeps review form state
+                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                      e.preventDefault();
+                      window.open(selectedSubmission.project_document_url, "_blank", "noopener,noreferrer");
+                    }
+                  }}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />

@@ -301,7 +301,7 @@ export default function App() {
         />
 
         <Route
-          path="/students/review"
+          path="/students/review/:submissionId?"
           element={
             <RequireRole allowed={["student"]}>
               <ReviewFlow onBack={() => navigate("/students")} />
