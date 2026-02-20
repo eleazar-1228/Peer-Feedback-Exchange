@@ -67,6 +67,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
    * @param emailValue - The email address to validate
    * @returns true if valid, false otherwise
    */
+  const ALLOWED_PROFESSOR_EMAILS = ['elentukh@bu.edu', 'mbocca13@bu.edu', 'eleazar@bu.edu'];
+
   const validateEmail = (emailValue: string) => {
     // Always enforce @bu.edu email addresses
     if (!emailValue.endsWith('@bu.edu')) {
@@ -109,6 +111,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       if (mode === "signup") {
         console.log("Starting password-based signup...");
+
+        if (userType === "professor" && !ALLOWED_PROFESSOR_EMAILS.includes(email.toLowerCase().trim())) {
+          setSocialLoginError("Professor sign-up is restricted. Only authorized email addresses may create professor accounts.");
+          return;
+        }
         
         if (!password) {
           setSocialLoginError("Password is required");
@@ -169,6 +176,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       if (mode === "login") {
         console.log("Attempting login...");
+
+        if (userType === "professor" && !ALLOWED_PROFESSOR_EMAILS.includes(email.toLowerCase().trim())) {
+          setSocialLoginError("Professor login is restricted. Only authorized email addresses may sign in as professor.");
+          return;
+        }
         
         if (!password) {
           setSocialLoginError("Password is required");
