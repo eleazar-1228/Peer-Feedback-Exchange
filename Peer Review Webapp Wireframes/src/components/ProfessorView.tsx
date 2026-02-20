@@ -787,10 +787,25 @@ export function ProfessorView() {
                             improvements: review.improvements ?? "",
                             oneChange: review.oneChange ?? "",
                             otherObservations: review.otherObservations ?? "",
+                            submittedWorkUrl: selectedSubmission?.submittedWorkUrl || review.submittedWorkUrl || ""
                           }}
                         />
                       </div>
                     ))}
+                              {/* Submission Link for Professor Modal */}
+                              {selectedSubmission?.submittedWorkUrl && (
+                                <div className="p-6 border-t border-gray-200">
+                                  <a
+                                    href={selectedSubmission.submittedWorkUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
+                                  >
+                                    <Star className="w-4 h-4" />
+                                    <span className="font-medium">Open Submitted Work</span>
+                                  </a>
+                                </div>
+                              )}
                   </div>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, User, Mail, BookOpen, Hash, Save } from 'lucide-react';
+import { ArrowLeft, User, Hash, Mail, Save } from 'lucide-react';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { getMyProfile, updateMyProfile } from '../lib/profileService';
@@ -14,7 +14,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [course, setCourse] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
@@ -25,7 +24,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
           setFirstName(profile.first_name as string || '');
           setLastName(profile.last_name as string || '');
           setStudentId(profile.student_id as string || '');
-          setCourse(profile.course as string || '');
         }
       } catch (e) {
         console.error("Failed to load profile:", e);
@@ -44,7 +42,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
         first_name: firstName.trim() || null,
         last_name: lastName.trim() || null,
         student_id: studentId.trim() || null,
-        course: course.trim() || null,
       });
       setSuccessMessage('Profile updated successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -88,10 +85,9 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
         </div>
       )}
 
-      {/* Form */}
+      {/* Form - Academic information (course) removed, personal info remains */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="space-y-6">
-          {/* Personal Information Section */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <User className="w-5 h-5" />
@@ -126,7 +122,6 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
                   />
                 </div>
               </div>
-
               <div>
                 <Label htmlFor="studentId" className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <Hash className="w-4 h-4" />
@@ -141,33 +136,8 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
                   className="mt-1.5"
                 />
               </div>
-
             </div>
           </div>
-
-          {/* Academic Information Section */}
-          <div className="pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <BookOpen className="w-5 h-5" />
-              Academic Information
-            </h3>
-            <div>
-              <Label htmlFor="course" className="text-sm font-medium text-gray-700">
-                Course
-              </Label>
-              <Input
-                id="course"
-                type="text"
-                placeholder="Enter your course"
-                value={course}
-                onChange={(e) => setCourse(e.target.value)}
-                className="mt-1.5"
-              />
-              <p className="mt-1 text-xs text-gray-500">Your primary course or program</p>
-            </div>
-          </div>
-
-          {/* Save Button */}
           <div className="pt-6 border-t border-gray-200">
             <button
               onClick={handleSave}

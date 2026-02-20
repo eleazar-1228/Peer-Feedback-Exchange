@@ -17,7 +17,7 @@ interface FeedbackDisplayProps {
   review: Review;
 }
 
-export function FeedbackDisplay({ review }: FeedbackDisplayProps) {
+export function FeedbackDisplay({ review, onClick }: FeedbackDisplayProps & { onClick?: () => void }) {
   const LikertDisplay = ({ label, value }: { label: string; value: number }) => (
     <div>
       <p className="text-xs font-medium text-gray-700 mb-1">{label}</p>
@@ -39,7 +39,7 @@ export function FeedbackDisplay({ review }: FeedbackDisplayProps) {
   );
 
   return (
-    <div className="border border-gray-200 rounded-lg p-6">
+    <div className="border border-gray-200 rounded-lg p-6 cursor-pointer hover:bg-gray-50" onClick={onClick}>
       <div className="flex items-center justify-between mb-4">
         <h5 className="font-medium text-gray-900">{review.reviewerName}</h5>
         <div className="flex items-center gap-2">
@@ -129,6 +129,20 @@ export function FeedbackDisplay({ review }: FeedbackDisplayProps) {
           )}
         </div>
       </div>
+      {/* Submission Link (if available) */}
+      {review.submittedWorkUrl && (
+        <div className="mt-6">
+          <a
+            href={review.submittedWorkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
+          >
+            <Star className="w-4 h-4" />
+            <span className="font-medium">Open Submitted Work</span>
+          </a>
+        </div>
+      )}
     </div>
   );
 }
