@@ -1111,6 +1111,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                     feedbackProvided.map((item) => (
                       <div
                         key={item.reviewId}
+                        onClick={() => {
+                          const submission = allDbSubmissions.find(s => s.id === item.id);
+                          if (submission) setSelectedAllSubmission(submission);
+                        }}
                         className="p-5 hover:bg-gray-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-start justify-between mb-3">
