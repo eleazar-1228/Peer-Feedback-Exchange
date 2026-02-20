@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { startSignupOtp, loginWithPassword, setPassword as setUserPassword, signUpWithPassword } from "../services/auth";
 import { supabase } from "../lib/supabaseClient";
@@ -61,6 +61,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [lastName, setLastName] = useState("");
   const [studentId, setStudentId] = useState("");
 
+  // Restore error message after redirect (e.g. professor login blocked)
+  useEffect(() => {
+    const stored = sessionStorage.getItem('loginError');
+    if (stored) {
+      setSocialLoginError(stored);
+      sessionStorage.removeItem('loginError');
+    }
+  }, []);
 
   /**
    * Validates email address to ensure it ends with @bu.edu
@@ -192,11 +200,27 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           return;
         }
 
-        const { error } = await loginWithPassword(email, password);
+        const { data: loginData, error } = await loginWithPassword(email, password);
 
         if (error) {
           console.error("Login error:", error);
           setSocialLoginError(error.message);
+          return;
+        }
+
+        const userId = loginData?.user?.id ?? (await supabase.auth.getUser()).data.user?.id;
+        const { data: profile } = userId
+          ? await supabase.from("profiles").select("role").eq("id", userId).single()
+          : { data: null };
+
+        if (userType === "professor" && profile?.role !== "professor") {
+          sessionStorage.setItem('loginError', "You can't login as professor.");
+          await supabase.auth.signOut();
+          return;
+        }
+        if (userType === "student" && profile?.role === "professor") {
+          sessionStorage.setItem('loginError', "You can't login as student.");
+          await supabase.auth.signOut();
           return;
         }
 
