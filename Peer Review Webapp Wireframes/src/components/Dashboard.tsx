@@ -1,4 +1,34 @@
-import { useEffect, useState } from 'react';
+// SubmissionLinkButton must be above other imports
+import { useState } from 'react';
+
+
+function SubmissionLinkButton({ url }: { url: string | undefined }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <span className="block mt-2">
+      {!revealed ? (
+        <button
+          className="text-blue-600 hover:underline text-sm bg-transparent border-none p-0 cursor-pointer"
+          onClick={() => setRevealed(true)}
+        >
+          View Submission Link
+        </button>
+      ) : url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline text-sm"
+        >
+          {url}
+        </a>
+      ) : (
+        <span className="text-gray-500 text-sm">No submission link available.</span>
+      )}
+    </span>
+  );
+}
+import { useEffect } from 'react';
 import { FileText, ClipboardCheck, CheckCircle, FileInput, ClipboardList, Calendar, BookOpen, Clock, ChevronUp, ChevronDown, X, Star, Search, ChevronLeft } from 'lucide-react';
 import { FeedbackReceivedModal } from './FeedbackReceivedModal';
 import { FeedbackProvidedModal } from './FeedbackProvidedModal';
@@ -52,6 +82,7 @@ interface StudentSubmission {
     oneChange: string;
     otherObservations: string;
   }>;
+  submittedWorkUrl?: string;
 }
 
 interface AllSubmission {
@@ -76,6 +107,7 @@ interface AllSubmission {
     oneChange: string;
     otherObservations: string;
   }>;
+  submittedWorkUrl?: string;
 }
 
 export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNavigateToFeedback }: DashboardProps) {
@@ -170,6 +202,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               numReviews: stats.numReviews,
               overallScore: stats.overallScore,
               reviews: [],
+              submittedWorkUrl: s.project_document_url || ""
             };
           })
         );
@@ -203,6 +236,7 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
               numReviews: stats.numReviews,
               overallScore: stats.overallScore,
               reviews: [],
+              submittedWorkUrl: s.project_document_url || ""
             };
           })
         );
@@ -1243,6 +1277,9 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                 <p className="text-sm text-gray-500 mt-1">
                   Submitted on {selectedSubmissionForDetails.submittedDate}
                 </p>
+                <div className="mt-2">
+                  <SubmissionLinkButton url={selectedSubmissionForDetails.submittedWorkUrl} />
+                </div>
               </div>
               <button
                 onClick={closeDetailsModal}
@@ -1457,6 +1494,10 @@ export function Dashboard({ onNavigateToSubmission, onNavigateToReview, onNaviga
                       }
                     </p>
                   </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-1">Submission link</p>
+                  <SubmissionLinkButton url={selectedAllSubmission.submittedWorkUrl} />
                 </div>
               </div>
 

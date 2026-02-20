@@ -322,18 +322,20 @@ export function ReviewFlow({ onBack }: ReviewFlowProps) {
               </div>
             </div>
 
-            <div>
-              <p className="text-sm text-gray-600 mb-2">Submitted work</p>
-              <a
-                href={selectedSubmission.project_document_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span className="font-medium">Open Submitted Work</span>
-              </a>
-            </div>
+            {selectedSubmission.project_document_url && (
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Submitted work</p>
+                <a
+                  href={selectedSubmission.project_document_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span className="font-medium">Open Submitted Work</span>
+                </a>
+              </div>
+            )}
           </div>
         )}
       </div>

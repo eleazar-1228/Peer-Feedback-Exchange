@@ -23,6 +23,7 @@ interface Submission {
   overallScore: number | null;
   authorName: string;
   submittedDate: string;
+  submittedWorkUrl?: string;
 }
 
 interface Review {
@@ -128,6 +129,7 @@ export function ProfessorView() {
               overallScore: st?.avgScore ?? null,
               authorName,
               submittedDate,
+              submittedWorkUrl: s.project_document_url || ""
             };
           })
         );
@@ -758,6 +760,22 @@ export function ProfessorView() {
                     </p>
                   </div>
                 </div>
+                {/* Submission link - always visible */}
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-1">Submission link</p>
+                  {selectedSubmission.submittedWorkUrl ? (
+                    <a
+                      href={selectedSubmission.submittedWorkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      {selectedSubmission.submittedWorkUrl}
+                    </a>
+                  ) : (
+                    <span className="text-gray-500 text-sm">No submission link available.</span>
+                  )}
+                </div>
               </div>
 
               {/* Reviews List - scrollable like Feedback Received box */}
@@ -787,25 +805,10 @@ export function ProfessorView() {
                             improvements: review.improvements ?? "",
                             oneChange: review.oneChange ?? "",
                             otherObservations: review.otherObservations ?? "",
-                            submittedWorkUrl: selectedSubmission?.submittedWorkUrl || review.submittedWorkUrl || ""
                           }}
                         />
                       </div>
                     ))}
-                              {/* Submission Link for Professor Modal */}
-                              {selectedSubmission?.submittedWorkUrl && (
-                                <div className="p-6 border-t border-gray-200">
-                                  <a
-                                    href={selectedSubmission.submittedWorkUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
-                                  >
-                                    <Star className="w-4 h-4" />
-                                    <span className="font-medium">Open Submitted Work</span>
-                                  </a>
-                                </div>
-                              )}
                   </div>
                 )}
               </div>
