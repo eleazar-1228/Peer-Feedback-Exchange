@@ -143,8 +143,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         console.log("Signup successful:", data);
         
-        // If user is created, insert profile
+        // If user is created, insert profile (double-check professor email before insert)
         if (data.user) {
+          const userEmail = (data.user as { email?: string }).email?.toLowerCase().trim() ?? email.toLowerCase().trim();
+          if (userType === "professor" && !ALLOWED_PROFESSOR_EMAILS.includes(userEmail)) {
+            setSocialLoginError("Professor sign-up is restricted. Only authorized email addresses may create professor accounts.");
+            return;
+          }
           const { error: profileError } = await supabase.from("profiles").insert({
             id: data.user.id,
             role: userType,
@@ -217,6 +222,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     
     console.log("VERIFY CLICKED", { email, verificationCode, password });
 
+    if (userType === "professor" && !ALLOWED_PROFESSOR_EMAILS.includes(email.toLowerCase().trim())) {
+      setSocialLoginError("Professor sign-up is restricted. Only authorized email addresses may create professor accounts.");
+      return;
+    }
+
     const { data, error } = await verifyEmailOtp(email, verificationCode);
 
     if (!data?.session || !data?.user) {
@@ -246,7 +256,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
 
     console.log({ firstName, lastName, studentId, email });
-    // 🔥 INSERT PROFILE INTO DATABASE
+    // INSERT PROFILE INTO DATABASE
     const { error: profileError } = await supabase.from("profiles").insert({
       id: user.id,
       role: userType,
