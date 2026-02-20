@@ -68,19 +68,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
    * @returns true if valid, false otherwise
    */
   const validateEmail = (emailValue: string) => {
-    // Allow non-BU emails in development if env flag is set
-    if (env.allowNonBuEmails) {
-      setEmailError('');
-      return true;
-    }
-    
+    // Always enforce @bu.edu email addresses
     if (!emailValue.endsWith('@bu.edu')) {
       setEmailError('Only @bu.edu email addresses are allowed');
       return false;
     }
     setEmailError('');
     return true;
-    
   };
 
   /**
