@@ -11,6 +11,7 @@ interface Review {
   improvements: string;
   oneChange: string;
   otherObservations: string;
+  submittedWorkUrl?: string;
 }
 
 interface FeedbackDisplayProps {

@@ -39,9 +39,9 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
     setSuccessMessage('');
     try {
       await updateMyProfile({
-        first_name: firstName.trim() || null,
-        last_name: lastName.trim() || null,
-        student_id: studentId.trim() || null,
+        first_name: firstName.trim() || undefined,
+        last_name: lastName.trim() || undefined,
+        student_id: studentId.trim() || undefined,
       });
       setSuccessMessage('Profile updated successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);

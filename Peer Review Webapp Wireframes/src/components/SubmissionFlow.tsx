@@ -288,7 +288,7 @@ export function SubmissionFlow({ onBack }: SubmissionFlowProps) {
                   <SelectValue placeholder="Select class..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CS 633 Software Quality Testing and Security Management">CS 633 Software Quality Testing and Security Management</SelectItem>
+                  <SelectItem value="CS 633 ">CS 633 Software Quality Testing and Security Management</SelectItem>
                   {/* <SelectItem value="Other">Other</SelectItem> */}
                 </SelectContent>
               </Select>
